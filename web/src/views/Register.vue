@@ -38,6 +38,10 @@
         <router-link to="/login">登录</router-link>
       </div>
     </div>
+    <div class="auth-contact">
+      联系我们
+      <a href="mailto:1225807604@qq.com">1225807604@qq.com</a>
+    </div>
   </div>
 </template>
 

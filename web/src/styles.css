@@ -340,9 +340,11 @@ body {
 .auth-page {
   min-height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 24px 24px 72px;
+  position: relative;
   background:
     radial-gradient(1200px 600px at 10% -10%, rgba(59, 109, 255, 0.18), transparent 55%),
     radial-gradient(900px 500px at 100% 0%, rgba(17, 24, 39, 0.08), transparent 50%),
@@ -391,5 +393,21 @@ body {
 .auth-footer a {
   color: var(--brand);
   text-decoration: none;
+}
+
+.auth-contact {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.auth-contact a {
+  color: var(--brand);
+  text-decoration: none;
+  margin-left: 6px;
 }
 
