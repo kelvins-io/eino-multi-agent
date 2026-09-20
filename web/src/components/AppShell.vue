@@ -12,25 +12,38 @@
         <router-link to="/eval" :class="{ 'is-active': route.path.startsWith('/eval') }">评估</router-link>
       </nav>
       <slot name="side" />
-      <div class="side-user">
-        <div class="side-user-name" :title="user?.username || ''">{{ user?.display_name || user?.username || '用户' }}</div>
-        <el-button size="small" @click="logout">退出</el-button>
-      </div>
     </aside>
     <main class="main">
+      <div class="app-userbar">
+        <span class="app-userbar-name" :title="user?.username || ''">{{ accountName }}</span>
+        <el-button size="small" @click="logout">退出登录</el-button>
+      </div>
       <slot />
     </main>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { clearSession, getUser } from '../auth'
+import { getMe } from '../api'
+import { accountLabel, clearSession, currentUser, getToken, setSession } from '../auth'
 
 const route = useRoute()
 const router = useRouter()
-const user = computed(() => getUser())
+const user = currentUser
+const accountName = computed(() => accountLabel(user.value))
+
+onMounted(async () => {
+  const token = getToken()
+  if (!token) return
+  try {
+    const me = await getMe()
+    setSession(token, me)
+  } catch {
+    // 保留本地会话，接口失败时仍显示已缓存的名称
+  }
+})
 
 const logout = () => {
   clearSession()

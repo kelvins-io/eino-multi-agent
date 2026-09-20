@@ -23,7 +23,7 @@ body {
   height: 100%;
   max-height: 100%;
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 240px 1fr;
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
 }
@@ -319,20 +319,19 @@ body {
   background: #f8fafc;
 }
 
-.side-user {
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid #d5e4f5;
+.app-userbar {
   display: flex;
+  justify-content: flex-end;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
+  padding: 12px 24px 0;
   flex-shrink: 0;
 }
 
-.side-user-name {
+.app-userbar-name {
   font-size: 13px;
   color: #3b4a5c;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
