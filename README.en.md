@@ -37,8 +37,8 @@ Agent tools include file I/O, shell, DuckDuckGo search, `fetch_url`, skill loadi
 ## Quick start
 
 ```bash
-# 1. Start Postgres (host port 14432)
-docker compose up -d
+# 1. Start Postgres only (host port 14432). Full stack: see Docker Compose below
+docker compose up -d postgres
 
 # 2. Configure
 cp config.example.yaml config.yaml
@@ -95,6 +95,22 @@ After building the frontend, Gin serves `web/dist`:
 cd web && npm run build
 go run ./cmd/server
 ```
+
+### Docker Compose
+
+One command starts Postgres, the API, and the frontend (Nginx serves the UI and proxies `/api`, including SSE, to the API). LLM keys and the JWT secret come from the repo `.env`. Compose overrides the in-container database DSN and workspace path, so you do not need to change the local DSN in `.env`.
+
+```bash
+cp .env.example .env
+# Set at least EINO_LLM_API_KEY / EINO_LLM_MODEL; change EINO_JWT_SECRET in production
+docker compose up -d --build
+```
+
+- Console: http://localhost:8080 (`EINO_WEB_PORT` changes the host port)
+- API: http://localhost:8180 (`EINO_API_PORT` changes the host port; point the CLI here)
+- Task sandboxes and logs live in volumes `workspace` and `logs`. `skills/` is mounted read-only; restart `api` after editing skills
+
+For local development, `docker compose up -d postgres` starts only the database.
 
 ## Web console
 
@@ -181,6 +197,8 @@ LLM examples are in `.env.example` (OpenAI-compatible, Volcengine Ark, local Oll
 ## Layout (brief)
 
 ```
+Dockerfile          # API image
+docker-compose.yml  # Postgres + API + frontend
 cmd/server          # HTTP server entry
 cmd/cli             # Task CLI
 cmd/eval            # Eval CLI
@@ -194,5 +212,5 @@ internal/eval       # Case scoring
 internal/store      # GORM models and persistence (incl. users)
 internal/workspace  # Sandbox and project shared dirs
 skills/             # Built-in SKILL.md files
-web/                # Vue console
+web/                # Vue console (Dockerfile / nginx.conf)
 ```

@@ -37,8 +37,8 @@ Agent 侧工具包括文件读写、shell、DuckDuckGo 搜索、`fetch_url`、�
 ## 快速开始
 
 ```bash
-# 1. 启动 Postgres（宿主机端口 14432）
-docker compose up -d
+# 1. 只启动 Postgres（宿主机端口 14432）。完整部署见下方 Docker Compose
+docker compose up -d postgres
 
 # 2. 配置
 cp config.example.yaml config.yaml
@@ -96,6 +96,22 @@ go run ./cmd/eval -limit 200
 cd web && npm run build
 go run ./cmd/server
 ```
+
+### Docker Compose 部署
+
+一条命令拉起 Postgres、API 与前端（Nginx 托管静态页，并把 `/api` 反代到 API，含 SSE）。模型密钥和 JWT 从项目根目录的 `.env` 读入；容器内数据库地址、工作区路径由 Compose 覆盖，不必改 `.env` 里的本机 DSN。
+
+```bash
+cp .env.example .env
+# 至少设置 EINO_LLM_API_KEY / EINO_LLM_MODEL，生产环境更换 EINO_JWT_SECRET
+docker compose up -d --build
+```
+
+- 控制台：http://localhost:8080 （`EINO_WEB_PORT` 可改宿主机端口）
+- API：http://localhost:8180 （`EINO_API_PORT` 可改宿主机端口，CLI 仍指向这里）
+- 任务沙箱与日志分别在卷 `workspace`、`logs`；`skills/` 以只读方式挂进 API，改技能后重启 `api` 即可
+
+本地只跑数据库时用 `docker compose up -d postgres`，避免顺带构建前后端镜像。
 
 ## Web 控制台
 
@@ -182,6 +198,8 @@ LLM 示例见 `.env.example`（OpenAI 兼容、火山方舟 Ark、本地 Ollama�
 ## 目录结构（简要）
 
 ```
+Dockerfile          # API 镜像
+docker-compose.yml  # Postgres + API + 前端
 cmd/server          # HTTP 服务入口
 cmd/cli             # 任务 CLI
 cmd/eval            # 评估 CLI
@@ -195,5 +213,5 @@ internal/eval       # 用例评分
 internal/store      # GORM 模型与持久化（含用户）
 internal/workspace  # 沙箱与项目共享目录
 skills/             # 内置技能 SKILL.md
-web/                # Vue 控制台
+web/                # Vue 控制台（含 Dockerfile / nginx.conf）
 ```

@@ -1,0 +1,10 @@
+.git
+.env
+config.yaml
+workspace
+data
+*.log
+vendor
+web/node_modules
+web/dist
+**/*_test.go

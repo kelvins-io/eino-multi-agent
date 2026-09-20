@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:13
     container_name: eino-work-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: eino
       POSTGRES_PASSWORD: eino
@@ -16,5 +17,65 @@ services:
       timeout: 5s
       retries: 10
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: eino-multi-agent-api
+    container_name: eino-work-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      EINO_DATABASE_DSN: postgres://eino:eino@postgres:5432/eino_work?sslmode=disable
+      EINO_SERVER_ADDR: ":8180"
+      EINO_SERVER_MODE: release
+      EINO_LOG_FORMAT: json
+      EINO_LOG_LEVEL: ${EINO_LOG_LEVEL:-info}
+      EINO_LOG_FILE: /data/logs/eino.log
+      EINO_LOG_KEEP_DAYS: ${EINO_LOG_KEEP_DAYS:-14}
+      EINO_JWT_SECRET: ${EINO_JWT_SECRET:-eino-dev-jwt-secret-change-me}
+      EINO_JWT_EXPIRE: ${EINO_JWT_EXPIRE:-168h}
+      EINO_AUTH_TOKEN: ${EINO_AUTH_TOKEN:-}
+      EINO_WORKSPACE_ROOT: /data/workspace
+      EINO_SKILLS_DIR: /app/skills
+      EINO_LLM_PROVIDER: ${EINO_LLM_PROVIDER:-openai}
+      EINO_LLM_API_KEY: ${EINO_LLM_API_KEY:-}
+      EINO_LLM_BASE_URL: ${EINO_LLM_BASE_URL:-}
+      EINO_LLM_MODEL: ${EINO_LLM_MODEL:-gpt-4o}
+      EINO_LLM_FALLBACK_MODELS: ${EINO_LLM_FALLBACK_MODELS:-}
+      EINO_LLM_TIMEOUT: ${EINO_LLM_TIMEOUT:-10m}
+      EINO_AGENT_MAX_ITERATION: ${EINO_AGENT_MAX_ITERATION:-40}
+      EINO_AGENT_RUN_TIMEOUT: ${EINO_AGENT_RUN_TIMEOUT:-30m}
+      EINO_AGENT_LANGUAGE: ${EINO_AGENT_LANGUAGE:-zh}
+    ports:
+      - "${EINO_API_PORT:-8180}:8180"
+    volumes:
+      - workspace:/data/workspace
+      - logs:/data/logs
+      - ./skills:/app/skills:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8180/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    image: eino-multi-agent-web
+    container_name: eino-work-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${EINO_WEB_PORT:-8080}:80"
+
 volumes:
   pgdata:
+  workspace:
+  logs:
