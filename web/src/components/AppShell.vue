@@ -2,7 +2,7 @@
   <div class="app-shell">
     <aside class="side">
       <div class="brand">EINO 工作任务</div>
-      <div class="brand-sub">长任务 Harness · {{ model || '未配置模型' }}</div>
+      <div class="brand-sub">长任务 Harness</div>
       <nav class="side-nav">
         <router-link to="/" :class="{ 'is-active': route.path === '/' }">任务</router-link>
         <router-link to="/projects" :class="{ 'is-active': route.path.startsWith('/projects') }">项目</router-link>
@@ -21,10 +21,6 @@
 
 <script setup>
 import { useRoute } from 'vue-router'
-
-defineProps({
-  model: { type: String, default: '' },
-})
 
 const route = useRoute()
 </script>

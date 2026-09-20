@@ -1,5 +1,5 @@
 <template>
-  <AppShell :model="meta.llm?.model">
+  <AppShell>
     <template #side>
       <el-button type="primary" class="side-action" @click="resetComposer">新建连接器</el-button>
       <div class="task-list">

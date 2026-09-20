@@ -1,5 +1,5 @@
 <template>
-  <AppShell :model="meta.llm?.model">
+  <AppShell>
     <template #side>
       <p class="muted" style="padding: 0 4px">按历史任务评估周报 / 调研 / 文件整理的完成率和确认次数，不重新跑模型。</p>
     </template>

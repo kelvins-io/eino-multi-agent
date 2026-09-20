@@ -29,8 +29,9 @@ body {
 }
 
 .side {
-  background: #111827;
-  color: #e5e7eb;
+  background: #e8f1fb;
+  color: var(--text);
+  border-right: 1px solid #d5e4f5;
   padding: 20px 16px;
   display: flex;
   flex-direction: column;
@@ -48,7 +49,7 @@ body {
 }
 
 .brand-sub {
-  color: #9ca3af;
+  color: var(--muted);
   font-size: 12px;
   margin-bottom: 16px;
   flex-shrink: 0;
@@ -63,7 +64,7 @@ body {
 }
 
 .side-nav a {
-  color: #d1d5db;
+  color: #3b4a5c;
   text-decoration: none;
   padding: 8px 10px;
   border-radius: 8px;
@@ -71,8 +72,9 @@ body {
 }
 
 .side-nav a.is-active {
-  background: #1e3a5f;
-  color: #fff;
+  background: #cfe0f5;
+  color: var(--brand);
+  font-weight: 600;
 }
 
 .page-body {
@@ -105,15 +107,15 @@ body {
 
 .task-item {
   border: 1px solid transparent;
-  background: #1f2937;
+  background: #ffffff;
   border-radius: 10px;
   padding: 10px 12px;
   cursor: pointer;
 }
 
 .task-item.active {
-  border-color: #60a5fa;
-  background: #1e3a5f;
+  border-color: #93c5fd;
+  background: #dbeafe;
 }
 
 .task-item .title {
@@ -124,7 +126,7 @@ body {
 .task-item .meta {
   display: flex;
   justify-content: space-between;
-  color: #9ca3af;
+  color: var(--muted);
   font-size: 12px;
 }
 

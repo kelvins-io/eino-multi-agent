@@ -1,5 +1,5 @@
 <template>
-  <AppShell :model="meta.llm?.model">
+  <AppShell>
     <template #side>
       <el-button type="primary" class="side-action" @click="resetComposer">
         新建任务
@@ -142,7 +142,6 @@
         <section class="panel">
           <h4>{{ detail ? '产物' : '能力' }}</h4>
           <div v-if="!detail">
-            <p>当前模型：{{ meta.llm?.provider }}/{{ meta.llm?.model }}</p>
             <p class="muted">技能用 skill 工具按需加载。主控拆解任务，research / office / code 子代理分别负责调研、文档表格和数据分析。覆盖已有文件会按确认策略暂停。</p>
             <div v-for="sk in meta.skills || []" :key="sk.name" class="skill-card">
               <strong>{{ sk.name }}</strong>

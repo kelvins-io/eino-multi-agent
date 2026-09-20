@@ -1,5 +1,5 @@
 <template>
-  <AppShell :model="meta.llm?.model">
+  <AppShell>
     <template #side>
       <p class="muted" style="padding: 0 4px">记录创建、确认、续跑等操作，进程重启也会写入。</p>
     </template>
