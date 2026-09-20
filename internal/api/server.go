@@ -45,6 +45,7 @@ func (s *Server) routes() {
 	api.GET("/tasks/:id", s.getTask)
 	api.POST("/tasks/:id/cancel", s.cancelTask)
 	api.POST("/tasks/:id/confirm", s.confirmTask)
+	api.POST("/tasks/:id/retry", s.retryTask)
 	api.GET("/tasks/:id/events", s.taskEvents)
 	api.GET("/tasks/:id/artifacts", s.listArtifacts)
 	api.GET("/tasks/:id/artifacts/:aid", s.downloadArtifact)
@@ -169,6 +170,19 @@ func (s *Server) cancelTask(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (s *Server) retryTask(c *gin.Context) {
+	task, err := s.runtime.Retry(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		status := http.StatusBadRequest
+		if harness.IsNotFound(err) {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, task)
 }
 
 func (s *Server) confirmTask(c *gin.Context) {

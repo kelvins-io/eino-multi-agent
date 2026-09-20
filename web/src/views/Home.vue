@@ -85,6 +85,14 @@
                 >
                   取消
                 </el-button>
+                <el-button
+                  v-if="detail.task.status === 'failed' || detail.task.status === 'cancelled' || detail.task.status === 'succeeded'"
+                  type="primary"
+                  :loading="retrying"
+                  @click="onRetry"
+                >
+                  重新执行
+                </el-button>
               </div>
             </div>
             <p style="color: #4b5563; white-space: pre-wrap">{{ detail.task.goal }}</p>
@@ -162,6 +170,7 @@ import {
   getTask,
   listTasks,
   openEventStream,
+  retryTask,
 } from '../api'
 
 const meta = ref({ llm: {}, skills: [] })
@@ -170,6 +179,7 @@ const currentId = ref('')
 const detail = ref(null)
 const events = ref([])
 const creating = ref(false)
+const retrying = ref(false)
 const form = reactive({
   title: '',
   goal: '',
@@ -278,6 +288,20 @@ const onCancel = async () => {
 const onConfirm = async (approved) => {
   await confirmTask(currentId.value, approved)
   await selectTask(currentId.value)
+}
+
+const onRetry = async () => {
+  retrying.value = true
+  try {
+    await retryTask(currentId.value)
+    ElMessage.success('已重新执行')
+    await selectTask(currentId.value)
+    await refreshList()
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || err.message)
+  } finally {
+    retrying.value = false
+  }
 }
 
 onMounted(async () => {

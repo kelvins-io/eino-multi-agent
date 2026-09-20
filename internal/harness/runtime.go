@@ -145,9 +145,63 @@ func (r *Runtime) Confirm(ctx context.Context, id string, approved bool) error {
 	return nil
 }
 
+func CanRetry(status string) bool {
+	return status == store.StatusFailed || status == store.StatusCancelled || status == store.StatusSucceeded
+}
+
+func (r *Runtime) Retry(ctx context.Context, id string) (*store.Task, error) {
+	task, err := r.store.GetTask(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !CanRetry(task.Status) {
+		return nil, fmt.Errorf("当前状态 %s 不能重新执行", task.Status)
+	}
+	r.mu.Lock()
+	if r.runs[id] != nil {
+		r.mu.Unlock()
+		return nil, fmt.Errorf("task is already running")
+	}
+	r.runs[id] = &liveRun{}
+	r.mu.Unlock()
+	if err := r.cp.Delete(ctx, id); err != nil {
+		r.clearIdleRun(id)
+		return nil, err
+	}
+	if err := r.store.UpdateStatus(ctx, id, store.StatusQueued, func(t *store.Task) {
+		t.ErrorMessage = ""
+		t.InterruptID = ""
+		t.InterruptInfo = ""
+		t.Summary = ""
+		t.FinishedAt = nil
+	}); err != nil {
+		r.clearIdleRun(id)
+		return nil, err
+	}
+	r.emit(ctx, id, "system", "", "任务重新执行", "")
+	go r.start(id, false, false)
+	return r.store.GetTask(ctx, id)
+}
+
+func (r *Runtime) clearIdleRun(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if live := r.runs[id]; live != nil && live.cancel == nil && live.adkFn == nil {
+		delete(r.runs, id)
+	}
+}
+
 func (r *Runtime) start(taskID string, resume bool, approved bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), r.cfg.Agent.RunTimeout)
 	defer cancel()
+	r.mu.Lock()
+	r.runs[taskID] = &liveRun{cancel: cancel}
+	r.mu.Unlock()
+	defer func() {
+		r.mu.Lock()
+		delete(r.runs, taskID)
+		r.mu.Unlock()
+	}()
 
 	task, err := r.store.GetTask(ctx, taskID)
 	if err != nil {
@@ -189,13 +243,10 @@ func (r *Runtime) start(taskID string, resume bool, approved bool) {
 	})
 	cancelOpt, adkCancel := adk.WithCancel()
 	r.mu.Lock()
-	r.runs[taskID] = &liveRun{cancel: cancel, adkFn: adkCancel}
+	if live := r.runs[taskID]; live != nil {
+		live.adkFn = adkCancel
+	}
 	r.mu.Unlock()
-	defer func() {
-		r.mu.Lock()
-		delete(r.runs, taskID)
-		r.mu.Unlock()
-	}()
 
 	now := time.Now()
 	_ = r.store.UpdateStatus(ctx, taskID, store.StatusRunning, func(t *store.Task) {

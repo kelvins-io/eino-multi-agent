@@ -22,6 +22,7 @@ export const createTask = (payload) => {
 }
 
 export const cancelTask = (id) => http.post(`/tasks/${id}/cancel`).then((r) => r.data)
+export const retryTask = (id) => http.post(`/tasks/${id}/retry`).then((r) => r.data)
 export const confirmTask = (id, approved) =>
   http.post(`/tasks/${id}/confirm`, { approved }).then((r) => r.data)
 

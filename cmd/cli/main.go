@@ -17,7 +17,7 @@ import (
 func main() {
 	base := getenv("EINO_API_BASE", "http://127.0.0.1:8180")
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "usage: cli <create|list|show|cancel|confirm> [flags]\n")
+		fmt.Fprintf(os.Stderr, "usage: cli <create|list|show|cancel|confirm|retry> [flags]\n")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -75,6 +75,11 @@ func main() {
 		_ = fs.Parse(os.Args[3:])
 		payload, _ := json.Marshal(map[string]bool{"approved": *approved})
 		fmt.Println(do(http.MethodPost, base+"/api/v1/tasks/"+id+"/confirm", "application/json", bytes.NewReader(payload)))
+	case "retry":
+		if len(os.Args) < 3 {
+			fatal("id is required")
+		}
+		fmt.Println(do(http.MethodPost, base+"/api/v1/tasks/"+os.Args[2]+"/retry", "application/json", strings.NewReader("{}")))
 	default:
 		fatal("unknown command")
 	}
