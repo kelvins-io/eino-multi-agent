@@ -131,10 +131,10 @@ func (s *Sandbox) ListInputs() ([]string, error) {
 }
 
 type FileInfo struct {
-	RelPath string
-	Name    string
-	Size    int64
-	Mime    string
+	RelPath string `json:"rel_path"`
+	Name    string `json:"name"`
+	Size    int64  `json:"size"`
+	Mime    string `json:"mime,omitempty"`
 }
 
 func (s *Sandbox) ScanOutput() ([]FileInfo, error) {

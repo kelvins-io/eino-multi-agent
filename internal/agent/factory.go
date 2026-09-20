@@ -54,6 +54,7 @@ func (f *Factory) Build(ctx context.Context, req BuildRequest) (adk.ResumableAge
 		}
 		mainTools = append(append([]tool.BaseTool{}, tools...), skillTool)
 	}
+	reduce := NewContextReducer()
 
 	research, err := deep.New(ctx, &deep.Config{
 		Name:        "research",
@@ -69,6 +70,7 @@ func (f *Factory) Build(ctx context.Context, req BuildRequest) (adk.ResumableAge
 		MaxIteration:           min(f.cfg.Agent.MaxIteration, 20),
 		ModelRetryConfig:       f.retryConfig(),
 		ModelFailoverConfig:    f.failoverConfig(),
+		Handlers:               []adk.ChatModelAgentMiddleware{reduce},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("research agent: %w", err)
@@ -86,6 +88,7 @@ func (f *Factory) Build(ctx context.Context, req BuildRequest) (adk.ResumableAge
 		MaxIteration:           min(f.cfg.Agent.MaxIteration, 20),
 		ModelRetryConfig:       f.retryConfig(),
 		ModelFailoverConfig:    f.failoverConfig(),
+		Handlers:               []adk.ChatModelAgentMiddleware{reduce},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("office agent: %w", err)
@@ -103,6 +106,7 @@ func (f *Factory) Build(ctx context.Context, req BuildRequest) (adk.ResumableAge
 		MaxIteration:           min(f.cfg.Agent.MaxIteration, 20),
 		ModelRetryConfig:       f.retryConfig(),
 		ModelFailoverConfig:    f.failoverConfig(),
+		Handlers:               []adk.ChatModelAgentMiddleware{reduce},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("code agent: %w", err)
@@ -124,6 +128,7 @@ func (f *Factory) Build(ctx context.Context, req BuildRequest) (adk.ResumableAge
 		MaxIteration:        f.cfg.Agent.MaxIteration,
 		ModelRetryConfig:    f.retryConfig(),
 		ModelFailoverConfig: f.failoverConfig(),
+		Handlers:            []adk.ChatModelAgentMiddleware{reduce},
 	})
 }
 

@@ -42,7 +42,7 @@ type fetchInput struct {
 func newFetchTool() (tool.BaseTool, error) {
 	client := &http.Client{Timeout: 20 * time.Second}
 	return utils.InferTool("fetch_url",
-		"抓取公开网页的文本内容，用于调研。不要用于需要登录的页面。",
+		"抓取公开网页并提取正文，只读采集，不要用于需要登录的页面。",
 		func(ctx context.Context, in *fetchInput) (string, error) {
 			if !strings.HasPrefix(in.URL, "http://") && !strings.HasPrefix(in.URL, "https://") {
 				return "", fmt.Errorf("only http/https urls are allowed")
@@ -64,6 +64,9 @@ func newFetchTool() (tool.BaseTool, error) {
 			text := string(body)
 			if !utf8.ValidString(text) {
 				text = strings.ToValidUTF8(text, "")
+			}
+			if looksLikeHTML(resp.Header.Get("Content-Type"), text) {
+				text = ReadableHTML(text)
 			}
 			return fmt.Sprintf("status=%d\n%s", resp.StatusCode, trimRunes(text, 8000)), nil
 		})

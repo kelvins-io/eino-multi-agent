@@ -1,8 +1,6 @@
 <template>
-  <div class="app-shell">
-    <aside class="side">
-      <div class="brand">EINO 工作任务</div>
-      <div class="brand-sub">长任务 Harness · {{ meta.llm?.model || '未配置模型' }}</div>
+  <AppShell :model="meta.llm?.model">
+    <template #side>
       <el-button type="primary" class="side-action" @click="resetComposer">
         新建任务
       </el-button>
@@ -22,9 +20,7 @@
         </div>
         <div v-if="!tasks.length" class="empty">还没有任务</div>
       </div>
-    </aside>
-
-    <main class="main">
+    </template>
       <div class="topbar">
         <el-alert
           v-if="!meta.llm?.ready"
@@ -47,6 +43,11 @@
               placeholder="说明要完成什么、材料在哪、交付什么。例如：根据 input/sales.csv 生成本周销售周报，输出 Markdown。"
             />
             <el-form label-position="top">
+              <el-form-item label="所属项目">
+                <el-select v-model="form.project_id" clearable placeholder="可选，共享资料会复制到本次任务" style="width: 100%">
+                  <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
+                </el-select>
+              </el-form-item>
               <el-form-item label="确认策略">
                 <el-radio-group v-model="form.confirm_policy">
                   <el-radio-button label="on_risk">按需确认</el-radio-button>
@@ -116,11 +117,24 @@
               style="margin-bottom: 12px"
             />
 
+            <div v-if="todos.length" class="todo-progress">
+              <div class="todo-head">
+                <span>任务拆解</span>
+                <span>{{ todoDone }}/{{ todos.length }}</span>
+              </div>
+              <el-progress :percentage="todoPct" :stroke-width="8" />
+              <ul class="todo-list">
+                <li v-for="(item, idx) in todos" :key="idx" :class="item.status">
+                  {{ item.content }}
+                </li>
+              </ul>
+            </div>
+
             <h4>执行过程</h4>
             <div v-if="!events.length" class="empty">等待 Agent 事件…</div>
-            <div v-for="ev in events" :key="ev.id" class="timeline-item">
-              <div class="kicker">{{ formatTime(ev.created_at) }} · {{ ev.agent || 'system' }} · {{ ev.type }}</div>
-              <pre>{{ ev.message }}</pre>
+            <div v-for="ev in events" :key="ev.id" class="timeline-item" :class="'kind-' + ev.type">
+              <div class="kicker">{{ formatTime(ev.created_at) }} · {{ ev.agent || 'system' }} · {{ stepLabel(ev) }}</div>
+              <pre v-if="ev.message">{{ ev.message }}</pre>
             </div>
           </div>
         </section>
@@ -140,8 +154,9 @@
             <el-table v-else :data="detail.artifacts" size="small">
               <el-table-column prop="name" label="文件" />
               <el-table-column prop="size" label="大小" width="90" />
-              <el-table-column label="">
+              <el-table-column label="" width="140">
                 <template #default="{ row }">
+                  <el-button link type="primary" @click="openPreview(row)">预览</el-button>
                   <el-link :href="artifactUrl(detail.task.id, row.id)" target="_blank">下载</el-link>
                 </template>
               </el-table-column>
@@ -149,23 +164,31 @@
             <p v-if="detail.task.summary" style="white-space: pre-wrap; margin-top: 16px">
               {{ detail.task.summary }}
             </p>
+            <el-drawer v-model="preview.visible" :title="preview.name" size="55%">
+              <p v-if="preview.loading" class="muted">加载预览…</p>
+              <img v-else-if="preview.kind === 'image'" :src="preview.url" alt="" class="preview-image" />
+              <pre v-else-if="preview.text" class="preview-text">{{ preview.text }}</pre>
+              <p v-else class="muted">该文件不支持预览，请下载查看。</p>
+            </el-drawer>
           </div>
         </section>
       </div>
-    </main>
-  </div>
+  </AppShell>
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import AppShell from '../components/AppShell.vue'
 import {
   artifactUrl,
   cancelTask,
   confirmTask,
   createTask,
+  getArtifactPreview,
   getMeta,
   getTask,
+  listProjects,
   listTasks,
   openEventStream,
   retryTask,
@@ -178,11 +201,14 @@ const detail = ref(null)
 const events = ref([])
 const creating = ref(false)
 const retrying = ref(false)
+const preview = reactive({ visible: false, loading: false, name: '', kind: '', text: '', url: '' })
+const projects = ref([])
 const form = reactive({
   title: '',
   goal: '',
   confirm_policy: 'on_risk',
   skills: ['weekly-report'],
+  project_id: '',
   files: [],
 })
 
@@ -214,6 +240,29 @@ const policyText = (s) =>
     always: '始终询问',
     never: '全部允许',
   })[s] || s
+
+const todos = computed(() => detail.value?.task?.todos || [])
+const todoDone = computed(() => todos.value.filter((t) => t.status === 'completed').length)
+const todoPct = computed(() => (todos.value.length ? Math.round((todoDone.value / todos.value.length) * 100) : 0))
+
+const stepLabel = (ev) =>
+  ({
+    think: '思考',
+    read: '读文件',
+    write: '写文件',
+    search: '搜索',
+    shell: '命令',
+    skill: '技能',
+    todos: '拆解',
+    interrupt: '等待确认',
+    confirm: '确认',
+    status: '状态',
+    error: '错误',
+    system: '系统',
+    tool_call: '调用工具',
+    tool_result: '工具结果',
+    assistant: '回复',
+  })[ev.type] || ev.type
 
 const formatTime = (v) => {
   if (!v) return ''
@@ -258,7 +307,7 @@ const selectTask = async (id) => {
     if (!events.value.some((x) => x.id === ev.id)) {
       events.value.push(ev)
     }
-    if (ev.type === 'status' || ev.type === 'interrupt' || ev.type === 'error') {
+    if (['status', 'interrupt', 'error', 'todos', 'write'].includes(ev.type)) {
       getTask(id).then((fresh) => {
         detail.value = fresh
         refreshList()
@@ -315,9 +364,36 @@ const onRetry = async () => {
   }
 }
 
+const openPreview = async (row) => {
+  preview.visible = true
+  preview.loading = true
+  preview.name = row.name
+  preview.kind = ''
+  preview.text = ''
+  preview.url = ''
+  try {
+    const data = await getArtifactPreview(currentId.value, row.id)
+    if (data.kind === 'image') {
+      preview.kind = 'image'
+      preview.url = data.url
+    } else if (data.text) {
+      preview.kind = 'text'
+      preview.text = data.truncated ? `${data.text}\n…[已截断]` : data.text
+    } else {
+      preview.kind = 'none'
+    }
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || err.message)
+    preview.visible = false
+  } finally {
+    preview.loading = false
+  }
+}
+
 onMounted(async () => {
   try {
     meta.value = await getMeta()
+    projects.value = await listProjects()
     await refreshList()
   } catch (err) {
     ElMessage.error('无法连接后端，请先启动 API 服务')

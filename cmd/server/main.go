@@ -4,11 +4,14 @@ import (
 	"context"
 	"flag"
 	"log"
+	"time"
 
 	"github.com/kelvins-io/eino-multi-agent/internal/agent"
 	"github.com/kelvins-io/eino-multi-agent/internal/api"
 	"github.com/kelvins-io/eino-multi-agent/internal/config"
+	"github.com/kelvins-io/eino-multi-agent/internal/connector"
 	"github.com/kelvins-io/eino-multi-agent/internal/harness"
+	"github.com/kelvins-io/eino-multi-agent/internal/scheduler"
 	"github.com/kelvins-io/eino-multi-agent/internal/store"
 )
 
@@ -40,7 +43,13 @@ func main() {
 	}
 
 	rt := harness.NewRuntime(cfg, st, factory, skills)
-	srv := api.New(cfg, st, rt)
+	reg := connector.New(st, cfg.Workspace.Root)
+	rt.SetOnSuccess(func(ctx context.Context, task *store.Task, arts []store.Artifact) {
+		reg.Notify(ctx, connector.Event{Task: task, Artifacts: arts})
+	})
+	sched := scheduler.New(st, rt, 20*time.Second)
+	sched.Start(context.Background())
+	srv := api.New(cfg, st, rt, sched, reg)
 	log.Printf("work harness listening on %s", cfg.Server.Addr)
 	if err := srv.Engine().Run(cfg.Server.Addr); err != nil {
 		log.Fatal(err)

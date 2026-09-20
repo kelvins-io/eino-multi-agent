@@ -18,8 +18,11 @@ type Task struct {
 	Status        string     `gorm:"size:32;index" json:"status"`
 	ConfirmPolicy string     `gorm:"size:32" json:"confirm_policy"`
 	Skills        []string   `gorm:"serializer:json;type:jsonb" json:"skills"`
+	ProjectID     string     `gorm:"size:36;index" json:"project_id,omitempty"`
+	ScheduleID    string     `gorm:"size:36;index" json:"schedule_id,omitempty"`
 	Workspace     string     `gorm:"size:1024" json:"workspace"`
 	Summary       string     `gorm:"type:text" json:"summary"`
+	Todos         []TodoItem `gorm:"serializer:json;type:jsonb" json:"todos,omitempty"`
 	ErrorMessage  string     `gorm:"type:text" json:"error_message"`
 	InterruptID   string     `gorm:"size:512" json:"interrupt_id,omitempty"`
 	InterruptInfo string     `gorm:"type:text" json:"interrupt_info,omitempty"`
@@ -30,6 +33,12 @@ type Task struct {
 }
 
 func (Task) TableName() string { return "tasks" }
+
+type TodoItem struct {
+	Content    string `json:"content"`
+	ActiveForm string `json:"active_form,omitempty"`
+	Status     string `json:"status"`
+}
 
 type TaskEvent struct {
 	ID        uint64    `gorm:"primaryKey" json:"id"`
@@ -63,3 +72,48 @@ type Checkpoint struct {
 }
 
 func (Checkpoint) TableName() string { return "checkpoints" }
+
+type Project struct {
+	ID          string    `gorm:"primaryKey;size:36" json:"id"`
+	Name        string    `gorm:"size:255" json:"name"`
+	Description string    `gorm:"type:text" json:"description"`
+	Workspace   string    `gorm:"size:1024" json:"workspace"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func (Project) TableName() string { return "projects" }
+
+type Schedule struct {
+	ID            string     `gorm:"primaryKey;size:36" json:"id"`
+	ProjectID     string     `gorm:"size:36;index" json:"project_id,omitempty"`
+	Title         string     `gorm:"size:255" json:"title"`
+	Goal          string     `gorm:"type:text" json:"goal"`
+	Skills        []string   `gorm:"serializer:json;type:jsonb" json:"skills"`
+	ConfirmPolicy string     `gorm:"size:32" json:"confirm_policy"`
+	Kind          string     `gorm:"size:16" json:"kind"`
+	Weekday       int        `json:"weekday"`
+	Hour          int        `json:"hour"`
+	Minute        int        `json:"minute"`
+	RunAt         *time.Time `json:"run_at,omitempty"`
+	Timezone      string     `gorm:"size:64" json:"timezone"`
+	Enabled       bool       `json:"enabled"`
+	LastRunAt     *time.Time `json:"last_run_at,omitempty"`
+	NextRunAt     *time.Time `json:"next_run_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+}
+
+func (Schedule) TableName() string { return "schedules" }
+
+type Connector struct {
+	ID        string            `gorm:"primaryKey;size:36" json:"id"`
+	Name      string            `gorm:"size:255" json:"name"`
+	Kind      string            `gorm:"size:32" json:"kind"`
+	Config    map[string]string `gorm:"serializer:json;type:jsonb" json:"config"`
+	Enabled   bool              `json:"enabled"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
+}
+
+func (Connector) TableName() string { return "connectors" }

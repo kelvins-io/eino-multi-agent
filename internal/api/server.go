@@ -13,23 +13,27 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kelvins-io/eino-multi-agent/internal/agent"
 	"github.com/kelvins-io/eino-multi-agent/internal/config"
+	"github.com/kelvins-io/eino-multi-agent/internal/connector"
 	"github.com/kelvins-io/eino-multi-agent/internal/harness"
+	"github.com/kelvins-io/eino-multi-agent/internal/scheduler"
 	"github.com/kelvins-io/eino-multi-agent/internal/store"
 	"github.com/kelvins-io/eino-multi-agent/internal/workspace"
 )
 
 type Server struct {
-	cfg     *config.Config
-	store   *store.Store
-	runtime *harness.Runtime
-	engine  *gin.Engine
+	cfg        *config.Config
+	store      *store.Store
+	runtime    *harness.Runtime
+	sched      *scheduler.Scheduler
+	connectors *connector.Registry
+	engine     *gin.Engine
 }
 
-func New(cfg *config.Config, st *store.Store, rt *harness.Runtime) *Server {
+func New(cfg *config.Config, st *store.Store, rt *harness.Runtime, sched *scheduler.Scheduler, connectors *connector.Registry) *Server {
 	gin.SetMode(cfg.Server.Mode)
 	r := gin.New()
 	r.Use(gin.Recovery(), gin.Logger(), cors(cfg.Server.CORSOrigins))
-	s := &Server{cfg: cfg, store: st, runtime: rt, engine: r}
+	s := &Server{cfg: cfg, store: st, runtime: rt, sched: sched, connectors: connectors, engine: r}
 	s.routes()
 	return s
 }
@@ -48,13 +52,35 @@ func (s *Server) routes() {
 	api.POST("/tasks/:id/retry", s.retryTask)
 	api.GET("/tasks/:id/events", s.taskEvents)
 	api.GET("/tasks/:id/artifacts", s.listArtifacts)
+	api.GET("/tasks/:id/artifacts/:aid/preview", s.previewArtifact)
 	api.GET("/tasks/:id/artifacts/:aid", s.downloadArtifact)
+
+	api.GET("/projects", s.listProjects)
+	api.POST("/projects", s.createProject)
+	api.GET("/projects/:id", s.getProject)
+	api.POST("/projects/:id/files", s.uploadProjectFiles)
+
+	api.GET("/schedules", s.listSchedules)
+	api.POST("/schedules", s.createSchedule)
+	api.POST("/schedules/:id/run", s.runSchedule)
+	api.POST("/schedules/:id/toggle", s.toggleSchedule)
+
+	api.GET("/connectors", s.listConnectors)
+	api.POST("/connectors", s.createConnector)
+	api.POST("/connectors/:id/toggle", s.toggleConnector)
+	api.POST("/connectors/:id/test", s.testConnector)
+	api.POST("/hooks/echo", s.hookEcho)
 
 	s.engine.NoRoute(s.spa)
 }
 
 func (s *Server) health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (s *Server) hookEcho(c *gin.Context) {
+	_, _ = io.Copy(io.Discard, io.LimitReader(c.Request.Body, 1<<20))
+	c.Status(http.StatusNoContent)
 }
 
 func (s *Server) meta(c *gin.Context) {
@@ -79,7 +105,7 @@ func (s *Server) meta(c *gin.Context) {
 
 func (s *Server) listTasks(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	tasks, err := s.store.ListTasks(c.Request.Context(), limit)
+	tasks, err := s.store.ListTasks(c.Request.Context(), limit, c.Query("project_id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -88,7 +114,7 @@ func (s *Server) listTasks(c *gin.Context) {
 }
 
 func (s *Server) createTask(c *gin.Context) {
-	var title, goal, policy string
+	var title, goal, policy, projectID string
 	var skills []string
 	var uploads []harness.Upload
 
@@ -97,6 +123,7 @@ func (s *Server) createTask(c *gin.Context) {
 		title = c.PostForm("title")
 		goal = c.PostForm("goal")
 		policy = c.PostForm("confirm_policy")
+		projectID = c.PostForm("project_id")
 		if raw := c.PostForm("skills"); raw != "" {
 			_ = json.Unmarshal([]byte(raw), &skills)
 			if len(skills) == 0 {
@@ -127,12 +154,13 @@ func (s *Server) createTask(c *gin.Context) {
 			Goal          string   `json:"goal"`
 			ConfirmPolicy string   `json:"confirm_policy"`
 			Skills        []string `json:"skills"`
+			ProjectID     string   `json:"project_id"`
 		}
 		if err := c.ShouldBindJSON(&body); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		title, goal, policy, skills = body.Title, body.Goal, body.ConfirmPolicy, body.Skills
+		title, goal, policy, skills, projectID = body.Title, body.Goal, body.ConfirmPolicy, body.Skills, body.ProjectID
 	}
 
 	task, err := s.runtime.Create(c.Request.Context(), harness.CreateInput{
@@ -140,6 +168,7 @@ func (s *Server) createTask(c *gin.Context) {
 		Goal:          goal,
 		ConfirmPolicy: policy,
 		Skills:        compact(skills),
+		ProjectID:     projectID,
 		Files:         uploads,
 	})
 	if err != nil {
@@ -281,7 +310,77 @@ func (s *Server) downloadArtifact(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
 	}
+	if c.Query("inline") == "1" {
+		c.File(abs)
+		return
+	}
 	c.FileAttachment(abs, item.Name)
+}
+
+func (s *Server) previewArtifact(c *gin.Context) {
+	task, err := s.store.GetTask(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	aid, _ := strconv.ParseUint(c.Param("aid"), 10, 64)
+	item, err := s.store.GetArtifact(c.Request.Context(), task.ID, aid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	if !harness.Previewable(item.Name, item.Mime) {
+		c.JSON(http.StatusOK, gin.H{"previewable": false, "name": item.Name, "mime": item.Mime})
+		return
+	}
+	sb, err := workspace.Open(task.Workspace)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	abs, err := sb.ReadArtifact(item.RelPath)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+	if strings.HasPrefix(item.Mime, "image/") || isImageName(item.Name) {
+		c.JSON(http.StatusOK, gin.H{
+			"previewable": true,
+			"kind":        "image",
+			"name":        item.Name,
+			"mime":        item.Mime,
+			"url":         "/api/v1/tasks/" + task.ID + "/artifacts/" + strconv.FormatUint(item.ID, 10) + "?inline=1",
+		})
+		return
+	}
+	raw, err := os.ReadFile(abs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	text := string(raw)
+	truncated := false
+	if len([]rune(text)) > 20000 {
+		text = string([]rune(text)[:20000])
+		truncated = true
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"previewable": true,
+		"kind":        "text",
+		"name":        item.Name,
+		"mime":        item.Mime,
+		"text":        text,
+		"truncated":   truncated,
+	})
+}
+
+func isImageName(name string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg":
+		return true
+	}
+	return false
 }
 
 func (s *Server) spa(c *gin.Context) {

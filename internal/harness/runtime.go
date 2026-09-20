@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +29,8 @@ type CreateInput struct {
 	Goal          string
 	ConfirmPolicy string
 	Skills        []string
+	ProjectID     string
+	ScheduleID    string
 	Files         []Upload
 }
 
@@ -45,6 +49,8 @@ type Runtime struct {
 
 	mu   sync.Mutex
 	runs map[string]*liveRun
+
+	onSuccess func(context.Context, *store.Task, []store.Artifact)
 }
 
 type liveRun struct {
@@ -68,6 +74,10 @@ func (r *Runtime) Bus() *Bus { return r.bus }
 
 func (r *Runtime) Skills() []agent.Skill { return r.skills }
 
+func (r *Runtime) SetOnSuccess(fn func(context.Context, *store.Task, []store.Artifact)) {
+	r.onSuccess = fn
+}
+
 func (r *Runtime) Create(ctx context.Context, in CreateInput) (*store.Task, error) {
 	if strings.TrimSpace(in.Goal) == "" {
 		return nil, fmt.Errorf("goal is required")
@@ -82,6 +92,18 @@ func (r *Runtime) Create(ctx context.Context, in CreateInput) (*store.Task, erro
 			return nil, err
 		}
 	}
+	if in.ProjectID != "" {
+		proj, err := r.store.GetProject(ctx, in.ProjectID)
+		if err != nil {
+			return nil, fmt.Errorf("project: %w", err)
+		}
+		shared := workspace.ProjectSharedDir(proj.Workspace)
+		if _, err := os.Stat(shared); err == nil {
+			if err := workspace.CopyTree(shared, sb.InputDir()); err != nil {
+				return nil, fmt.Errorf("copy project files: %w", err)
+			}
+		}
+	}
 	title := strings.TrimSpace(in.Title)
 	if title == "" {
 		title = truncateRunes(strings.ReplaceAll(in.Goal, "\n", " "), 40)
@@ -93,6 +115,8 @@ func (r *Runtime) Create(ctx context.Context, in CreateInput) (*store.Task, erro
 		Status:        store.StatusQueued,
 		ConfirmPolicy: confirm.Normalize(in.ConfirmPolicy),
 		Skills:        in.Skills,
+		ProjectID:     in.ProjectID,
+		ScheduleID:    in.ScheduleID,
 		Workspace:     sb.Root,
 	}
 	if err := r.store.CreateTask(ctx, task); err != nil {
@@ -184,6 +208,7 @@ func (r *Runtime) Retry(ctx context.Context, id string) (*store.Task, error) {
 		t.InterruptID = ""
 		t.InterruptInfo = ""
 		t.Summary = ""
+		t.Todos = nil
 		t.FinishedAt = nil
 	}); err != nil {
 		r.clearIdleRun(id)
@@ -321,7 +346,7 @@ func (r *Runtime) start(taskID string, resume bool, approved bool) {
 			interrupted = true
 			return
 		}
-		if text := projectEvent(ctx, r, taskID, event); text != "" {
+		if text := r.project(ctx, taskID, event, sb); text != "" {
 			lastSummary = text
 		}
 	}
@@ -339,6 +364,24 @@ func (r *Runtime) start(taskID string, resume bool, approved bool) {
 		t.ErrorMessage = ""
 	})
 	r.emit(ctx, taskID, "status", "", "任务完成", "")
+	r.finishSuccess(ctx, taskID, sb)
+}
+
+func (r *Runtime) finishSuccess(ctx context.Context, taskID string, sb *workspace.Sandbox) {
+	task, err := r.store.GetTask(ctx, taskID)
+	if err != nil {
+		return
+	}
+	if task.ProjectID != "" {
+		if proj, err := r.store.GetProject(ctx, task.ProjectID); err == nil {
+			dest := filepath.Join(workspace.ProjectOutputDir(proj.Workspace), task.ID)
+			_ = workspace.CopyTree(sb.OutputDir(), dest)
+		}
+	}
+	arts, _ := r.store.ListArtifacts(ctx, taskID)
+	if r.onSuccess != nil {
+		go r.onSuccess(context.Background(), task, arts)
+	}
 }
 
 func (r *Runtime) fail(ctx context.Context, task *store.Task, err error) {
@@ -394,7 +437,7 @@ func (r *Runtime) emit(ctx context.Context, taskID, typ, agentName, message, pay
 	})
 }
 
-func projectEvent(ctx context.Context, r *Runtime, taskID string, event *adk.AgentEvent) string {
+func (r *Runtime) project(ctx context.Context, taskID string, event *adk.AgentEvent, sb *workspace.Sandbox) string {
 	if event.Output == nil || event.Output.MessageOutput == nil {
 		return ""
 	}
@@ -403,25 +446,25 @@ func projectEvent(ctx context.Context, r *Runtime, taskID string, event *adk.Age
 		return ""
 	}
 	agentName := event.AgentName
-	if len(msg.ToolCalls) > 0 {
-		for _, tc := range msg.ToolCalls {
-			name := tc.Function.Name
-			args := tc.Function.Arguments
-			r.emit(ctx, taskID, "tool_call", agentName, "调用 "+name, args)
-			if name == "write_todos" {
-				r.emit(ctx, taskID, "todos", agentName, "更新任务拆解", args)
-			}
+	last := ""
+	for _, step := range projectMessage(msg) {
+		r.emit(ctx, taskID, step.Type, agentName, step.Message, step.Payload)
+		if len(step.Todos) > 0 {
+			_ = r.store.PatchTask(ctx, taskID, func(t *store.Task) {
+				t.Todos = step.Todos
+			})
+		}
+		if step.RefreshArtifacts && sb != nil {
+			_ = r.refreshArtifacts(ctx, taskID, sb)
+		}
+		if step.Type == "think" {
+			last = step.Message
 		}
 	}
-	if msg.Role == schema.Tool {
-		r.emit(ctx, taskID, "tool_result", agentName, truncateRunes(msg.Content, 500), "")
-		return ""
-	}
-	if strings.TrimSpace(msg.Content) != "" {
-		r.emit(ctx, taskID, "assistant", agentName, msg.Content, "")
+	if msg.Role != schema.Tool && strings.TrimSpace(msg.Content) != "" && len(msg.ToolCalls) == 0 {
 		return msg.Content
 	}
-	return ""
+	return last
 }
 
 func buildUserPrompt(task *store.Task, sb *workspace.Sandbox) string {

@@ -29,7 +29,7 @@ func Open(cfg config.DatabaseConfig) (*Store, error) {
 	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
 	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(time.Hour)
-	if err := db.AutoMigrate(&Task{}, &TaskEvent{}, &Artifact{}, &Checkpoint{}); err != nil {
+	if err := db.AutoMigrate(&Task{}, &TaskEvent{}, &Artifact{}, &Checkpoint{}, &Project{}, &Schedule{}, &Connector{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return &Store{db: db}, nil
@@ -49,17 +49,32 @@ func (s *Store) GetTask(ctx context.Context, id string) (*Task, error) {
 	return &task, nil
 }
 
-func (s *Store) ListTasks(ctx context.Context, limit int) ([]Task, error) {
+func (s *Store) ListTasks(ctx context.Context, limit int, projectID string) ([]Task, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
+	q := s.db.WithContext(ctx).Order("created_at DESC").Limit(limit)
+	if projectID != "" {
+		q = q.Where("project_id = ?", projectID)
+	}
 	var tasks []Task
-	err := s.db.WithContext(ctx).Order("created_at DESC").Limit(limit).Find(&tasks).Error
+	err := q.Find(&tasks).Error
 	return tasks, err
 }
 
 func (s *Store) SaveTask(ctx context.Context, task *Task) error {
 	return s.db.WithContext(ctx).Save(task).Error
+}
+
+func (s *Store) PatchTask(ctx context.Context, id string, extra func(*Task)) error {
+	task, err := s.GetTask(ctx, id)
+	if err != nil {
+		return err
+	}
+	if extra != nil {
+		extra(task)
+	}
+	return s.SaveTask(ctx, task)
 }
 
 func (s *Store) UpdateStatus(ctx context.Context, id, status string, extra func(*Task)) error {
