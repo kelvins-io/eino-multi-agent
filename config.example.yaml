@@ -1,0 +1,37 @@
+server:
+  addr: ":8180"
+  mode: debug
+  cors_origins:
+    - "http://localhost:5273"
+    - "http://127.0.0.1:5273"
+
+database:
+  dsn: "postgres://eino:eino@127.0.0.1:14432/eino_work?sslmode=disable"
+  max_open_conns: 20
+  max_idle_conns: 5
+
+workspace:
+  root: "./workspace"
+
+skills:
+  dir: "./skills"
+
+llm:
+  # openai | ark | ollama
+  provider: "openai"
+  api_key: ""
+  base_url: ""
+  model: "gpt-4o"
+  # 主模型额度耗尽（如豆包安全体验模式 429）时按顺序切换
+  fallback_models: []
+  # 单次 ChatModel 调用超时。推理模型建议 10m，过短会在读响应体时 deadline exceeded
+  timeout: 10m
+
+agent:
+  max_iteration: 40
+  run_timeout: 30m
+  language: "zh"
+
+search:
+  enabled: true
+  max_results: 8

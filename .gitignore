@@ -26,6 +26,19 @@ go.work.sum
 
 # env file
 .env
+config.yaml
+
+# Runtime data
+workspace/
+data/
+*.log
+
+# Frontend
+web/node_modules/
+web/dist/
+
+# OS
+.DS_Store
 
 # Editor/IDE
 # .idea/

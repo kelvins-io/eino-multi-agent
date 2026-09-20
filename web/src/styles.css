@@ -1,0 +1,153 @@
+:root {
+  --bg: #f4f6fb;
+  --panel: #ffffff;
+  --line: #e6eaf2;
+  --text: #1f2a37;
+  --muted: #6b7280;
+  --brand: #3b6dff;
+}
+
+* { box-sizing: border-box; }
+html, body, #app { height: 100%; margin: 0; }
+body {
+  font-family: "PingFang SC", "Noto Sans SC", -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app-shell {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+}
+
+.side {
+  background: #111827;
+  color: #e5e7eb;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.brand {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.brand-sub {
+  color: #9ca3af;
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+
+.task-list {
+  overflow: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-item {
+  border: 1px solid transparent;
+  background: #1f2937;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.task-item.active {
+  border-color: #60a5fa;
+  background: #1e3a5f;
+}
+
+.task-item .title {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.task-item .meta {
+  display: flex;
+  justify-content: space-between;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.topbar {
+  padding: 16px 24px 0;
+}
+
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr;
+  gap: 16px;
+  padding: 16px 24px 24px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.timeline-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.timeline-item .kicker {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.timeline-item pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 40px 12px;
+}
+
+.muted { color: var(--muted); font-size: 13px; }
+
+.skill-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.skill-card p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
