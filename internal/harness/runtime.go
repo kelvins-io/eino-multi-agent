@@ -140,8 +140,19 @@ func (r *Runtime) Confirm(ctx context.Context, id string, approved bool) error {
 	if task.Status != store.StatusWaitingConfirm {
 		return fmt.Errorf("task is not waiting for confirmation")
 	}
-	r.emit(ctx, id, "confirm", "", map[bool]string{true: "用户已批准，继续执行", false: "用户已拒绝"}[approved], "")
-	go r.start(id, true, approved)
+	if !approved {
+		_ = r.cp.Delete(ctx, id)
+		now := time.Now()
+		r.emit(ctx, id, "confirm", "", "用户已拒绝，任务停止", "")
+		return r.store.UpdateStatus(ctx, id, store.StatusCancelled, func(t *store.Task) {
+			t.FinishedAt = &now
+			t.ErrorMessage = "用户拒绝了待确认操作"
+			t.InterruptID = ""
+			t.InterruptInfo = ""
+		})
+	}
+	r.emit(ctx, id, "confirm", "", "用户已批准，继续执行", "")
+	go r.start(id, true, true)
 	return nil
 }
 

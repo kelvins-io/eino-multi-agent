@@ -1,9 +1,12 @@
 package workspace
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/cloudwego/eino/adk/filesystem"
 )
 
 func TestRewriteCommandAllowsRelativeScript(t *testing.T) {
@@ -79,6 +82,35 @@ func TestValidateCommandRejectsEscape(t *testing.T) {
 	}
 	if err := validateCommand(sb.Root, "python3 /Users/other/secret.py"); err == nil {
 		t.Fatal("expected outside workspace")
+	}
+}
+
+func TestWriteOverwritesConfirmOnRisk(t *testing.T) {
+	sb := newTestSandbox(t)
+	ctx := context.Background()
+	b, err := NewBackend(ctx, sb, "on_risk")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(sb.OutputDir(), "report.md")
+	first := &filesystem.WriteRequest{FilePath: path, Content: "v1"}
+	if err := b.Write(ctx, first); err != nil {
+		t.Fatalf("first write: %v", err)
+	}
+	err = b.Write(ctx, &filesystem.WriteRequest{FilePath: path, Content: "v2"})
+	if err == nil {
+		t.Fatal("overwrite should interrupt")
+	}
+	if !strings.Contains(err.Error(), "请求确认") && !strings.Contains(err.Error(), "interrupt") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	never, err := NewBackend(ctx, sb, "never")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := never.Write(ctx, &filesystem.WriteRequest{FilePath: path, Content: "v3"}); err != nil {
+		t.Fatalf("never should overwrite: %v", err)
 	}
 }
 

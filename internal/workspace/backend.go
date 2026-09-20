@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	localbk "github.com/cloudwego/eino-ext/adk/backend/local"
 	"github.com/cloudwego/eino/adk/filesystem"
 	"github.com/cloudwego/eino/schema"
+	"github.com/kelvins-io/eino-multi-agent/internal/confirm"
 )
 
 // absPathTokenRe matches filesystem paths that start at a token boundary.
@@ -17,11 +19,12 @@ import (
 var absPathTokenRe = regexp.MustCompile(`(^|[\s'"=])(/[^\s'"]+)`)
 
 type BoundBackend struct {
-	inner *localbk.Local
-	root  string
+	inner  *localbk.Local
+	root   string
+	policy string
 }
 
-func NewBackend(ctx context.Context, sb *Sandbox) (*BoundBackend, error) {
+func NewBackend(ctx context.Context, sb *Sandbox, policy string) (*BoundBackend, error) {
 	inner, err := localbk.NewBackend(ctx, &localbk.Config{
 		ValidateCommand: func(cmd string) error {
 			return validateCommand(sb.Root, cmd)
@@ -30,7 +33,7 @@ func NewBackend(ctx context.Context, sb *Sandbox) (*BoundBackend, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &BoundBackend{inner: inner, root: sb.Root}, nil
+	return &BoundBackend{inner: inner, root: sb.Root, policy: confirm.Normalize(policy)}, nil
 }
 
 func (b *BoundBackend) rewrite(p string) (string, error) {
@@ -91,6 +94,10 @@ func (b *BoundBackend) Write(ctx context.Context, req *filesystem.WriteRequest) 
 	if err != nil {
 		return err
 	}
+	action := confirm.Classify("write", b.displayPath(p), fileExists(p))
+	if err := confirm.Gate(ctx, b.policy, action, b.displayPath(p)); err != nil {
+		return err
+	}
 	cloned := *req
 	cloned.FilePath = p
 	return b.inner.Write(ctx, &cloned)
@@ -99,6 +106,10 @@ func (b *BoundBackend) Write(ctx context.Context, req *filesystem.WriteRequest) 
 func (b *BoundBackend) Edit(ctx context.Context, req *filesystem.EditRequest) error {
 	p, err := b.rewrite(req.FilePath)
 	if err != nil {
+		return err
+	}
+	action := confirm.Classify("edit", b.displayPath(p), fileExists(p))
+	if err := confirm.Gate(ctx, b.policy, action, b.displayPath(p)); err != nil {
 		return err
 	}
 	cloned := *req
@@ -110,6 +121,10 @@ func (b *BoundBackend) ExecuteStreaming(ctx context.Context, input *filesystem.E
 	if input == nil {
 		return nil, fmt.Errorf("command is required")
 	}
+	action := confirm.ClassifyShell(input.Command)
+	if err := confirm.Gate(ctx, b.policy, action, truncate(input.Command, 180)); err != nil {
+		return nil, err
+	}
 	rewritten, err := rewriteCommand(b.root, input.Command)
 	if err != nil {
 		return nil, err
@@ -117,6 +132,26 @@ func (b *BoundBackend) ExecuteStreaming(ctx context.Context, input *filesystem.E
 	cloned := *input
 	cloned.Command = fmt.Sprintf("cd %s && { %s ; }", shellQuote(b.root), rewritten)
 	return b.inner.ExecuteStreaming(ctx, &cloned)
+}
+
+func (b *BoundBackend) displayPath(abs string) string {
+	rel, err := filepath.Rel(b.root, abs)
+	if err != nil {
+		return abs
+	}
+	return filepath.ToSlash(rel)
+}
+
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
 
 func validateCommand(root, cmd string) error {

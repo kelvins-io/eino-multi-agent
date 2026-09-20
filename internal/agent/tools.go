@@ -27,17 +27,11 @@ func newConfirmTool(policy string) (tool.BaseTool, error) {
 	return utils.InferTool("confirm_action",
 		"在执行可能覆盖文件、删除、运行危险命令或对外发送数据之前调用。若策略要求确认，将暂停等待用户批准。",
 		func(ctx context.Context, in *confirmInput) (string, error) {
-			if isResume, hasData, data := tool.GetResumeContext[bool](ctx); isResume && hasData {
-				if data {
-					return "用户已批准，请继续执行该操作。", nil
-				}
-				return "用户已拒绝，请停止该操作并给出替代方案。", nil
+			action := confirm.Classify(in.Action, in.Target, false)
+			if err := confirm.Gate(ctx, policy, action, in.Target); err != nil {
+				return "", err
 			}
-			if !confirm.NeedsConfirm(policy, in.Action, in.Target) {
-				return "当前确认策略允许自动执行，无需等待用户。", nil
-			}
-			msg := fmt.Sprintf("请求确认：%s %s。原因：%s", in.Action, in.Target, in.Reason)
-			return "", tool.Interrupt(ctx, msg)
+			return "当前确认策略允许继续执行该操作。", nil
 		})
 }
 
@@ -75,7 +69,36 @@ func newFetchTool() (tool.BaseTool, error) {
 		})
 }
 
-func extraTools(ctx context.Context, cfg *config.Config, policy string) ([]tool.BaseTool, error) {
+type skillInput struct {
+	Name string `json:"name" jsonschema_description:"要加载的技能名称，如 weekly-report、research、file-organize"`
+}
+
+func newSkillTool(skills []Skill) (tool.BaseTool, error) {
+	index := make(map[string]Skill, len(skills))
+	var names []string
+	for _, s := range skills {
+		index[s.Name] = s
+		names = append(names, s.Name+": "+s.Description)
+	}
+	desc := "加载专业工作流程并按该技能执行。可用技能：\n" + strings.Join(names, "\n")
+	return utils.InferTool("skill", desc, func(_ context.Context, in *skillInput) (string, error) {
+		s, ok := index[strings.TrimSpace(in.Name)]
+		if !ok {
+			return "", fmt.Errorf("未知技能 %q，可用：%s", in.Name, strings.Join(skillNames(skills), ", "))
+		}
+		return fmt.Sprintf("# %s\n%s\n\n%s", s.Name, s.Description, s.Content), nil
+	})
+}
+
+func skillNames(skills []Skill) []string {
+	out := make([]string, 0, len(skills))
+	for _, s := range skills {
+		out = append(out, s.Name)
+	}
+	return out
+}
+
+func extraTools(ctx context.Context, cfg *config.Config, policy string, skills []Skill) ([]tool.BaseTool, error) {
 	confirmTool, err := newConfirmTool(policy)
 	if err != nil {
 		return nil, err
@@ -85,6 +108,13 @@ func extraTools(ctx context.Context, cfg *config.Config, policy string) ([]tool.
 		return nil, err
 	}
 	tools := []tool.BaseTool{confirmTool, fetchTool}
+	if len(skills) > 0 {
+		skillTool, err := newSkillTool(skills)
+		if err != nil {
+			return nil, err
+		}
+		tools = append(tools, skillTool)
+	}
 	if cfg.Search.Enabled {
 		searchTool, err := ddg.NewTextSearchTool(ctx, &ddg.Config{
 			ToolName:   "web_search",

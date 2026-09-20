@@ -177,3 +177,27 @@ body {
   font-size: 13px;
   line-height: 1.5;
 }
+
+.confirm-card {
+  border: 1px solid #f3c38a;
+  background: #fff8ee;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.confirm-title {
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+
+.confirm-card p {
+  margin: 0 0 8px;
+  line-height: 1.55;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}

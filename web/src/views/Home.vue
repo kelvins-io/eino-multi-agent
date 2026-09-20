@@ -77,6 +77,7 @@
               <div>
                 <h3 style="margin: 0 0 6px">{{ detail.task.title }}</h3>
                 <el-tag :type="statusType(detail.task.status)">{{ statusText(detail.task.status) }}</el-tag>
+                <el-tag size="small" style="margin-left: 6px">{{ policyText(detail.task.confirm_policy) }}</el-tag>
               </div>
               <div>
                 <el-button
@@ -97,17 +98,14 @@
             </div>
             <p style="color: #4b5563; white-space: pre-wrap">{{ detail.task.goal }}</p>
 
-            <el-alert
-              v-if="detail.task.status === 'waiting_confirm'"
-              :title="detail.task.interrupt_info || '需要你确认后才能继续'"
-              type="warning"
-              show-icon
-              :closable="false"
-              style="margin-bottom: 12px"
-            />
-            <div v-if="detail.task.status === 'waiting_confirm'" style="margin-bottom: 16px">
-              <el-button type="primary" @click="onConfirm(true)">允许继续</el-button>
-              <el-button @click="onConfirm(false)">拒绝</el-button>
+            <div v-if="detail.task.status === 'waiting_confirm'" class="confirm-card">
+              <div class="confirm-title">需要你确认后才能继续</div>
+              <p>{{ detail.task.interrupt_info || '该操作被确认策略拦截。' }}</p>
+              <p class="muted">允许后继续执行；拒绝会停止本次任务，可稍后重新执行。</p>
+              <div class="confirm-actions">
+                <el-button type="primary" @click="onConfirm(true)">允许继续</el-button>
+                <el-button type="danger" plain @click="onConfirm(false)">拒绝并停止</el-button>
+              </div>
             </div>
             <el-alert
               v-if="detail.task.error_message"
@@ -131,7 +129,7 @@
           <h4>{{ detail ? '产物' : '能力' }}</h4>
           <div v-if="!detail">
             <p>当前模型：{{ meta.llm?.provider }}/{{ meta.llm?.model }}</p>
-            <p class="muted">技能会注入主控 Agent。DeepAgent 负责拆解、读写工作区并调用子代理。</p>
+            <p class="muted">技能用 skill 工具按需加载。主控拆解任务，research / office / code 子代理分别负责调研、文档表格和数据分析。覆盖已有文件会按确认策略暂停。</p>
             <div v-for="sk in meta.skills || []" :key="sk.name" class="skill-card">
               <strong>{{ sk.name }}</strong>
               <p>{{ sk.description }}</p>
@@ -210,6 +208,13 @@ const statusType = (s) =>
     cancelled: 'info',
   })[s] || 'info'
 
+const policyText = (s) =>
+  ({
+    on_risk: '按需确认',
+    always: '始终询问',
+    never: '全部允许',
+  })[s] || s
+
 const formatTime = (v) => {
   if (!v) return ''
   const d = new Date(v)
@@ -286,8 +291,14 @@ const onCancel = async () => {
 }
 
 const onConfirm = async (approved) => {
-  await confirmTask(currentId.value, approved)
-  await selectTask(currentId.value)
+  try {
+    await confirmTask(currentId.value, approved)
+    ElMessage.success(approved ? '已允许，继续执行' : '已拒绝，任务已停止')
+    await selectTask(currentId.value)
+    await refreshList()
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || err.message)
+  }
 }
 
 const onRetry = async () => {
