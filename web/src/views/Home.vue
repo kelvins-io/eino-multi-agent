@@ -3,7 +3,7 @@
     <aside class="side">
       <div class="brand">EINO 工作任务</div>
       <div class="brand-sub">长任务 Harness · {{ meta.llm?.model || '未配置模型' }}</div>
-      <el-button type="primary" style="width: 100%; margin-bottom: 16px" @click="resetComposer">
+      <el-button type="primary" class="side-action" @click="resetComposer">
         新建任务
       </el-button>
       <div class="task-list">
