@@ -44,6 +44,9 @@ func (s *Server) Engine() *gin.Engine { return s.engine }
 func (s *Server) routes() {
 	api := s.engine.Group("/api/v1")
 	api.GET("/health", s.health)
+	api.POST("/auth/register", s.register)
+	api.POST("/auth/login", s.login)
+	api.GET("/auth/me", s.me)
 	api.GET("/meta", s.meta)
 	api.GET("/tasks", s.listTasks)
 	api.POST("/tasks", s.createTask)
@@ -103,13 +106,18 @@ func (s *Server) meta(c *gin.Context) {
 		},
 		"confirm_policies": []string{"on_risk", "always", "never"},
 		"skills":           skills,
-		"auth_required":    s.cfg.Server.AuthToken != "",
+		"auth_required":    true,
+		"auth_mode":        "jwt",
 	})
 }
 
 func (s *Server) listTasks(c *gin.Context) {
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	tasks, err := s.store.ListTasks(c.Request.Context(), limit, c.Query("project_id"))
+	tasks, err := s.store.ListTasks(c.Request.Context(), limit, c.Query("project_id"), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -118,6 +126,10 @@ func (s *Server) listTasks(c *gin.Context) {
 }
 
 func (s *Server) createTask(c *gin.Context) {
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
 	var title, goal, policy, projectID string
 	var skills []string
 	var uploads []harness.Upload
@@ -167,12 +179,20 @@ func (s *Server) createTask(c *gin.Context) {
 		title, goal, policy, skills, projectID = body.Title, body.Goal, body.ConfirmPolicy, body.Skills, body.ProjectID
 	}
 
+	if projectID != "" {
+		if _, err := s.store.GetProjectOwned(c.Request.Context(), projectID, userID); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "project not found"})
+			return
+		}
+	}
+
 	task, err := s.runtime.Create(c.Request.Context(), harness.CreateInput{
 		Title:         title,
 		Goal:          goal,
 		ConfirmPolicy: policy,
 		Skills:        compact(skills),
 		ProjectID:     projectID,
+		UserID:        userID,
 		Files:         uploads,
 	})
 	if err != nil {
@@ -184,13 +204,13 @@ func (s *Server) createTask(c *gin.Context) {
 }
 
 func (s *Server) getTask(c *gin.Context) {
-	task, err := s.store.GetTask(c.Request.Context(), c.Param("id"))
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	task, err := s.store.GetTaskOwned(c.Request.Context(), c.Param("id"), userID)
 	if err != nil {
-		status := http.StatusInternalServerError
-		if harness.IsNotFound(err) {
-			status = http.StatusNotFound
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
+		notFoundOrErr(c, err)
 		return
 	}
 	events, _ := s.store.ListEvents(c.Request.Context(), task.ID, 0)
@@ -199,6 +219,14 @@ func (s *Server) getTask(c *gin.Context) {
 }
 
 func (s *Server) cancelTask(c *gin.Context) {
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	if _, err := s.store.GetTaskOwned(c.Request.Context(), c.Param("id"), userID); err != nil {
+		notFoundOrErr(c, err)
+		return
+	}
 	if err := s.runtime.Cancel(c.Request.Context(), c.Param("id")); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -208,6 +236,14 @@ func (s *Server) cancelTask(c *gin.Context) {
 }
 
 func (s *Server) retryTask(c *gin.Context) {
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	if _, err := s.store.GetTaskOwned(c.Request.Context(), c.Param("id"), userID); err != nil {
+		notFoundOrErr(c, err)
+		return
+	}
 	task, err := s.runtime.Retry(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		status := http.StatusBadRequest
@@ -222,6 +258,14 @@ func (s *Server) retryTask(c *gin.Context) {
 }
 
 func (s *Server) confirmTask(c *gin.Context) {
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	if _, err := s.store.GetTaskOwned(c.Request.Context(), c.Param("id"), userID); err != nil {
+		notFoundOrErr(c, err)
+		return
+	}
 	var body struct {
 		Approved bool `json:"approved"`
 	}
@@ -242,7 +286,15 @@ func (s *Server) confirmTask(c *gin.Context) {
 }
 
 func (s *Server) taskEvents(c *gin.Context) {
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
 	id := c.Param("id")
+	if _, err := s.store.GetTaskOwned(c.Request.Context(), id, userID); err != nil {
+		notFoundOrErr(c, err)
+		return
+	}
 	afterID, _ := strconv.ParseUint(c.DefaultQuery("after", "0"), 10, 64)
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
@@ -292,6 +344,14 @@ func (s *Server) taskEvents(c *gin.Context) {
 }
 
 func (s *Server) listArtifacts(c *gin.Context) {
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	if _, err := s.store.GetTaskOwned(c.Request.Context(), c.Param("id"), userID); err != nil {
+		notFoundOrErr(c, err)
+		return
+	}
 	items, err := s.store.ListArtifacts(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -301,9 +361,13 @@ func (s *Server) listArtifacts(c *gin.Context) {
 }
 
 func (s *Server) downloadArtifact(c *gin.Context) {
-	task, err := s.store.GetTask(c.Request.Context(), c.Param("id"))
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	task, err := s.store.GetTaskOwned(c.Request.Context(), c.Param("id"), userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		notFoundOrErr(c, err)
 		return
 	}
 	aid, _ := strconv.ParseUint(c.Param("aid"), 10, 64)
@@ -330,9 +394,13 @@ func (s *Server) downloadArtifact(c *gin.Context) {
 }
 
 func (s *Server) previewArtifact(c *gin.Context) {
-	task, err := s.store.GetTask(c.Request.Context(), c.Param("id"))
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	task, err := s.store.GetTaskOwned(c.Request.Context(), c.Param("id"), userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		notFoundOrErr(c, err)
 		return
 	}
 	aid, _ := strconv.ParseUint(c.Param("aid"), 10, 64)

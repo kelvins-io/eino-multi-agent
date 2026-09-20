@@ -21,10 +21,12 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Addr        string   `yaml:"addr"`
-	Mode        string   `yaml:"mode"`
-	CORSOrigins []string `yaml:"cors_origins"`
-	AuthToken   string   `yaml:"auth_token"`
+	Addr        string        `yaml:"addr"`
+	Mode        string        `yaml:"mode"`
+	CORSOrigins []string      `yaml:"cors_origins"`
+	AuthToken   string        `yaml:"auth_token"` // 可选：静态 Bearer，兼容旧 CLI/脚本
+	JWTSecret   string        `yaml:"jwt_secret"`
+	JWTExpire   time.Duration `yaml:"jwt_expire"`
 }
 
 type DatabaseConfig struct {
@@ -70,6 +72,8 @@ func Default() *Config {
 				"http://localhost:5173",
 				"http://127.0.0.1:5173",
 			},
+			JWTSecret: "eino-dev-jwt-secret-change-me",
+			JWTExpire: 168 * time.Hour,
 		},
 		Database: DatabaseConfig{
 			DSN:          "postgres://eino:eino@127.0.0.1:5432/eino_work?sslmode=disable",
@@ -148,6 +152,12 @@ func (c *Config) normalize() error {
 	if c.Database.MaxIdleConns <= 0 {
 		c.Database.MaxIdleConns = 5
 	}
+	if strings.TrimSpace(c.Server.JWTSecret) == "" {
+		c.Server.JWTSecret = "eino-dev-jwt-secret-change-me"
+	}
+	if c.Server.JWTExpire <= 0 {
+		c.Server.JWTExpire = 168 * time.Hour
+	}
 	return nil
 }
 
@@ -160,6 +170,14 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("EINO_AUTH_TOKEN"); v != "" {
 		cfg.Server.AuthToken = v
+	}
+	if v := os.Getenv("EINO_JWT_SECRET"); v != "" {
+		cfg.Server.JWTSecret = v
+	}
+	if v := os.Getenv("EINO_JWT_EXPIRE"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.Server.JWTExpire = d
+		}
 	}
 	if v := os.Getenv("EINO_DATABASE_DSN"); v != "" {
 		cfg.Database.DSN = v

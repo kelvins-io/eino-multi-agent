@@ -14,7 +14,11 @@ import (
 )
 
 func (s *Server) listProjects(c *gin.Context) {
-	items, err := s.store.ListProjects(c.Request.Context())
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	items, err := s.store.ListProjects(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -23,6 +27,10 @@ func (s *Server) listProjects(c *gin.Context) {
 }
 
 func (s *Server) createProject(c *gin.Context) {
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
 	var body struct {
 		Name        string `json:"name"`
 		Description string `json:"description"`
@@ -37,7 +45,7 @@ func (s *Server) createProject(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	p := &store.Project{ID: id, Name: body.Name, Description: body.Description, Workspace: root}
+	p := &store.Project{ID: id, UserID: userID, Name: body.Name, Description: body.Description, Workspace: root}
 	if err := s.store.CreateProject(c.Request.Context(), p); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -47,20 +55,28 @@ func (s *Server) createProject(c *gin.Context) {
 }
 
 func (s *Server) getProject(c *gin.Context) {
-	p, err := s.store.GetProject(c.Request.Context(), c.Param("id"))
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	p, err := s.store.GetProjectOwned(c.Request.Context(), c.Param("id"), userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		notFoundOrErr(c, err)
 		return
 	}
 	files, _ := workspace.ListShared(p.Workspace)
-	tasks, _ := s.store.ListTasks(c.Request.Context(), 50, p.ID)
+	tasks, _ := s.store.ListTasks(c.Request.Context(), 50, p.ID, userID)
 	c.JSON(http.StatusOK, gin.H{"project": p, "files": files, "tasks": tasks})
 }
 
 func (s *Server) uploadProjectFiles(c *gin.Context) {
-	p, err := s.store.GetProject(c.Request.Context(), c.Param("id"))
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	p, err := s.store.GetProjectOwned(c.Request.Context(), c.Param("id"), userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		notFoundOrErr(c, err)
 		return
 	}
 	form, err := c.MultipartForm()
@@ -86,7 +102,11 @@ func (s *Server) uploadProjectFiles(c *gin.Context) {
 }
 
 func (s *Server) listSchedules(c *gin.Context) {
-	items, err := s.store.ListSchedules(c.Request.Context())
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	items, err := s.store.ListSchedules(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -95,6 +115,10 @@ func (s *Server) listSchedules(c *gin.Context) {
 }
 
 func (s *Server) createSchedule(c *gin.Context) {
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
 	var body struct {
 		ProjectID     string   `json:"project_id"`
 		Title         string   `json:"title"`
@@ -111,6 +135,12 @@ func (s *Server) createSchedule(c *gin.Context) {
 	if err := c.ShouldBindJSON(&body); err != nil || body.Goal == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "goal is required"})
 		return
+	}
+	if body.ProjectID != "" {
+		if _, err := s.store.GetProjectOwned(c.Request.Context(), body.ProjectID, userID); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "project not found"})
+			return
+		}
 	}
 	if body.Timezone == "" {
 		body.Timezone = "Asia/Shanghai"
@@ -139,6 +169,7 @@ func (s *Server) createSchedule(c *gin.Context) {
 	}
 	item := &store.Schedule{
 		ID:            uuid.NewString(),
+		UserID:        userID,
 		ProjectID:     body.ProjectID,
 		Title:         title,
 		Goal:          body.Goal,
@@ -162,8 +193,16 @@ func (s *Server) createSchedule(c *gin.Context) {
 }
 
 func (s *Server) runSchedule(c *gin.Context) {
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
 	if s.sched == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "scheduler not ready"})
+		return
+	}
+	if _, err := s.store.GetScheduleOwned(c.Request.Context(), c.Param("id"), userID); err != nil {
+		notFoundOrErr(c, err)
 		return
 	}
 	task, err := s.sched.FireNow(c.Request.Context(), c.Param("id"))
@@ -176,9 +215,13 @@ func (s *Server) runSchedule(c *gin.Context) {
 }
 
 func (s *Server) toggleSchedule(c *gin.Context) {
-	item, err := s.store.GetSchedule(c.Request.Context(), c.Param("id"))
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	item, err := s.store.GetScheduleOwned(c.Request.Context(), c.Param("id"), userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		notFoundOrErr(c, err)
 		return
 	}
 	item.Enabled = !item.Enabled
@@ -190,7 +233,11 @@ func (s *Server) toggleSchedule(c *gin.Context) {
 }
 
 func (s *Server) listConnectors(c *gin.Context) {
-	items, err := s.store.ListConnectors(c.Request.Context())
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	items, err := s.store.ListConnectors(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -199,6 +246,10 @@ func (s *Server) listConnectors(c *gin.Context) {
 }
 
 func (s *Server) createConnector(c *gin.Context) {
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
 	var body struct {
 		Name   string            `json:"name"`
 		Kind   string            `json:"kind"`
@@ -217,6 +268,7 @@ func (s *Server) createConnector(c *gin.Context) {
 	}
 	item := &store.Connector{
 		ID:      uuid.NewString(),
+		UserID:  userID,
 		Name:    body.Name,
 		Kind:    body.Kind,
 		Config:  body.Config,
@@ -231,9 +283,13 @@ func (s *Server) createConnector(c *gin.Context) {
 }
 
 func (s *Server) toggleConnector(c *gin.Context) {
-	item, err := s.store.GetConnector(c.Request.Context(), c.Param("id"))
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	item, err := s.store.GetConnectorOwned(c.Request.Context(), c.Param("id"), userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		notFoundOrErr(c, err)
 		return
 	}
 	item.Enabled = !item.Enabled
@@ -245,16 +301,20 @@ func (s *Server) toggleConnector(c *gin.Context) {
 }
 
 func (s *Server) testConnector(c *gin.Context) {
-	item, err := s.store.GetConnector(c.Request.Context(), c.Param("id"))
+	userID, ok := s.requireUser(c)
+	if !ok {
+		return
+	}
+	item, err := s.store.GetConnectorOwned(c.Request.Context(), c.Param("id"), userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		notFoundOrErr(c, err)
 		return
 	}
 	if s.connectors == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "connectors not ready"})
 		return
 	}
-	ev := connector.Event{Task: &store.Task{ID: "test", Title: "连接器测试", Status: store.StatusSucceeded, Workspace: s.cfg.Workspace.Root}}
+	ev := connector.Event{Task: &store.Task{ID: "test", UserID: userID, Title: "连接器测试", Status: store.StatusSucceeded, Workspace: s.cfg.Workspace.Root}}
 	if err := s.connectors.Invoke(c.Request.Context(), item, ev); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

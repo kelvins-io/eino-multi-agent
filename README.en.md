@@ -65,7 +65,7 @@ Business APIs need a user JWT. Register or log in, then set `EINO_API_TOKEN`:
 # Register (or use /auth/login)
 curl -s -X POST http://127.0.0.1:8180/api/v1/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"username":"demo","password":"secret1"}'
+  -d '{"username":"demo","display_name":"Demo User","password":"secret1"}'
 export EINO_API_TOKEN=<your-jwt>
 
 # Defaults to http://127.0.0.1:8180; override with EINO_API_BASE
@@ -115,7 +115,7 @@ Public (no token): `GET /health`, `POST /auth/register`, `POST /auth/login`, `PO
 | Method | Path | Description |
 |---|---|---|
 | GET | `/health` | Health check |
-| POST | `/auth/register` | Register and receive a JWT |
+| POST | `/auth/register` | Register `{"username","display_name","password"}`, returns JWT |
 | POST | `/auth/login` | Log in and receive a JWT |
 | GET | `/auth/me` | Current user |
 | GET | `/meta` | Model readiness, skills, confirm policies |

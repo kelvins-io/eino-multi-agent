@@ -40,7 +40,11 @@ func New(st *store.Store, workspaceRoot string) *Registry {
 }
 
 func (r *Registry) Notify(ctx context.Context, ev Event) {
-	items, err := r.store.EnabledConnectors(ctx)
+	userID := ""
+	if ev.Task != nil {
+		userID = ev.Task.UserID
+	}
+	items, err := r.store.EnabledConnectors(ctx, userID)
 	if err != nil {
 		log.Printf("list connectors: %v", err)
 		return

@@ -29,7 +29,7 @@ func Open(cfg config.DatabaseConfig) (*Store, error) {
 	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
 	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(time.Hour)
-	if err := db.AutoMigrate(&Task{}, &TaskEvent{}, &Artifact{}, &Checkpoint{}, &Project{}, &Schedule{}, &Connector{}, &AuditLog{}); err != nil {
+	if err := db.AutoMigrate(&User{}, &Task{}, &TaskEvent{}, &Artifact{}, &Checkpoint{}, &Project{}, &Schedule{}, &Connector{}, &AuditLog{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return &Store{db: db}, nil
@@ -49,11 +49,26 @@ func (s *Store) GetTask(ctx context.Context, id string) (*Task, error) {
 	return &task, nil
 }
 
-func (s *Store) ListTasks(ctx context.Context, limit int, projectID string) ([]Task, error) {
+func (s *Store) GetTaskOwned(ctx context.Context, id, userID string) (*Task, error) {
+	var task Task
+	q := s.db.WithContext(ctx).Where("id = ?", id)
+	if userID != "" {
+		q = q.Where("user_id = ?", userID)
+	}
+	if err := q.First(&task).Error; err != nil {
+		return nil, err
+	}
+	return &task, nil
+}
+
+func (s *Store) ListTasks(ctx context.Context, limit int, projectID, userID string) ([]Task, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
 	q := s.db.WithContext(ctx).Order("created_at DESC").Limit(limit)
+	if userID != "" {
+		q = q.Where("user_id = ?", userID)
+	}
 	if projectID != "" {
 		q = q.Where("project_id = ?", projectID)
 	}

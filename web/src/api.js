@@ -1,9 +1,50 @@
 import axios from 'axios'
+import { clearSession, getToken, setSession } from './auth'
 
 const http = axios.create({
   baseURL: '/api/v1',
   timeout: 30000,
 })
+
+http.interceptors.request.use((config) => {
+  const token = getToken()
+  if (token) {
+    config.headers = config.headers || {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+http.interceptors.response.use(
+  (resp) => resp,
+  (err) => {
+    if (err.response?.status === 401) {
+      const url = err.config?.url || ''
+      if (!url.includes('/auth/login') && !url.includes('/auth/register')) {
+        clearSession()
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+          const redirect = encodeURIComponent(window.location.pathname + window.location.search)
+          window.location.assign(`/login?redirect=${redirect}`)
+        }
+      }
+    }
+    return Promise.reject(err)
+  },
+)
+
+export const register = async (payload) => {
+  const data = await http.post('/auth/register', payload).then((r) => r.data)
+  setSession(data.token, data.user)
+  return data
+}
+
+export const login = async (payload) => {
+  const data = await http.post('/auth/login', payload).then((r) => r.data)
+  setSession(data.token, data.user)
+  return data
+}
+
+export const getMe = () => http.get('/auth/me').then((r) => r.data)
 
 export const getMeta = () => http.get('/meta').then((r) => r.data)
 export const listTasks = () => http.get('/tasks').then((r) => r.data.items || [])
@@ -53,13 +94,23 @@ export const retryTask = (id) => http.post(`/tasks/${id}/retry`).then((r) => r.d
 export const confirmTask = (id, approved) =>
   http.post(`/tasks/${id}/confirm`, { approved }).then((r) => r.data)
 
-export const artifactUrl = (taskId, artifactId, inline = false) =>
-  `/api/v1/tasks/${taskId}/artifacts/${artifactId}${inline ? '?inline=1' : ''}`
+export const artifactUrl = (taskId, artifactId, inline = false) => {
+  const token = getToken()
+  const qs = new URLSearchParams()
+  if (inline) qs.set('inline', '1')
+  if (token) qs.set('token', token)
+  const q = qs.toString()
+  return `/api/v1/tasks/${taskId}/artifacts/${artifactId}${q ? `?${q}` : ''}`
+}
+
 export const getArtifactPreview = (taskId, artifactId) =>
   http.get(`/tasks/${taskId}/artifacts/${artifactId}/preview`).then((r) => r.data)
 
 export const openEventStream = (taskId, after, onEvent) => {
-  const url = `/api/v1/tasks/${taskId}/events?after=${after || 0}`
+  const token = getToken()
+  const qs = new URLSearchParams({ after: String(after || 0) })
+  if (token) qs.set('token', token)
+  const url = `/api/v1/tasks/${taskId}/events?${qs.toString()}`
   const es = new EventSource(url)
   es.addEventListener('task', (e) => {
     try {

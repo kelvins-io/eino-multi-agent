@@ -15,6 +15,7 @@ import (
 func main() {
 	configPath := flag.String("config", "", "path to config.yaml")
 	limit := flag.Int("limit", 200, "max tasks to score")
+	userID := flag.String("user", "", "optional user id to scope tasks")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
@@ -25,7 +26,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	report, err := eval.Run(context.Background(), st, *limit)
+	report, err := eval.Run(context.Background(), st, *limit, *userID)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -17,9 +17,25 @@ func (s *Store) GetProject(ctx context.Context, id string) (*Project, error) {
 	return &p, nil
 }
 
-func (s *Store) ListProjects(ctx context.Context) ([]Project, error) {
+func (s *Store) GetProjectOwned(ctx context.Context, id, userID string) (*Project, error) {
+	var p Project
+	q := s.db.WithContext(ctx).Where("id = ?", id)
+	if userID != "" {
+		q = q.Where("user_id = ?", userID)
+	}
+	if err := q.First(&p).Error; err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func (s *Store) ListProjects(ctx context.Context, userID string) ([]Project, error) {
+	q := s.db.WithContext(ctx).Order("created_at DESC")
+	if userID != "" {
+		q = q.Where("user_id = ?", userID)
+	}
 	var items []Project
-	err := s.db.WithContext(ctx).Order("created_at DESC").Find(&items).Error
+	err := q.Find(&items).Error
 	return items, err
 }
 
@@ -39,9 +55,25 @@ func (s *Store) GetSchedule(ctx context.Context, id string) (*Schedule, error) {
 	return &item, nil
 }
 
-func (s *Store) ListSchedules(ctx context.Context) ([]Schedule, error) {
+func (s *Store) GetScheduleOwned(ctx context.Context, id, userID string) (*Schedule, error) {
+	var item Schedule
+	q := s.db.WithContext(ctx).Where("id = ?", id)
+	if userID != "" {
+		q = q.Where("user_id = ?", userID)
+	}
+	if err := q.First(&item).Error; err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *Store) ListSchedules(ctx context.Context, userID string) ([]Schedule, error) {
+	q := s.db.WithContext(ctx).Order("created_at DESC")
+	if userID != "" {
+		q = q.Where("user_id = ?", userID)
+	}
 	var items []Schedule
-	err := s.db.WithContext(ctx).Order("created_at DESC").Find(&items).Error
+	err := q.Find(&items).Error
 	return items, err
 }
 
@@ -67,9 +99,25 @@ func (s *Store) GetConnector(ctx context.Context, id string) (*Connector, error)
 	return &item, nil
 }
 
-func (s *Store) ListConnectors(ctx context.Context) ([]Connector, error) {
+func (s *Store) GetConnectorOwned(ctx context.Context, id, userID string) (*Connector, error) {
+	var item Connector
+	q := s.db.WithContext(ctx).Where("id = ?", id)
+	if userID != "" {
+		q = q.Where("user_id = ?", userID)
+	}
+	if err := q.First(&item).Error; err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *Store) ListConnectors(ctx context.Context, userID string) ([]Connector, error) {
+	q := s.db.WithContext(ctx).Order("created_at DESC")
+	if userID != "" {
+		q = q.Where("user_id = ?", userID)
+	}
 	var items []Connector
-	err := s.db.WithContext(ctx).Order("created_at DESC").Find(&items).Error
+	err := q.Find(&items).Error
 	return items, err
 }
 
@@ -77,9 +125,12 @@ func (s *Store) SaveConnector(ctx context.Context, item *Connector) error {
 	return s.db.WithContext(ctx).Save(item).Error
 }
 
-func (s *Store) EnabledConnectors(ctx context.Context) ([]Connector, error) {
+func (s *Store) EnabledConnectors(ctx context.Context, userID string) ([]Connector, error) {
+	if userID == "" {
+		return nil, nil
+	}
 	var items []Connector
-	err := s.db.WithContext(ctx).Where("enabled = ?", true).Find(&items).Error
+	err := s.db.WithContext(ctx).Where("enabled = ? AND user_id = ?", true, userID).Find(&items).Error
 	return items, err
 }
 
@@ -96,11 +147,15 @@ func (s *Store) CreateAudit(ctx context.Context, item *AuditLog) error {
 	return s.db.WithContext(ctx).Create(item).Error
 }
 
-func (s *Store) ListAudit(ctx context.Context, limit int) ([]AuditLog, error) {
+func (s *Store) ListAudit(ctx context.Context, limit int, userID string) ([]AuditLog, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 100
 	}
+	q := s.db.WithContext(ctx).Order("id DESC").Limit(limit)
+	if userID != "" {
+		q = q.Where("user_id = ?", userID)
+	}
 	var items []AuditLog
-	err := s.db.WithContext(ctx).Order("id DESC").Limit(limit).Find(&items).Error
+	err := q.Find(&items).Error
 	return items, err
 }

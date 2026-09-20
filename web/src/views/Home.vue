@@ -374,7 +374,7 @@ const openPreview = async (row) => {
     const data = await getArtifactPreview(currentId.value, row.id)
     if (data.kind === 'image') {
       preview.kind = 'image'
-      preview.url = data.url
+      preview.url = artifactUrl(currentId.value, row.id, true)
     } else if (data.text) {
       preview.kind = 'text'
       preview.text = data.truncated ? `${data.text}\n…[已截断]` : data.text

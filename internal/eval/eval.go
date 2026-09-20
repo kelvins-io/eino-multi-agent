@@ -70,8 +70,8 @@ func Catalog() []Case {
 	}
 }
 
-func Run(ctx context.Context, st *store.Store, limit int) (*Report, error) {
-	tasks, err := st.ListTasks(ctx, limit, "")
+func Run(ctx context.Context, st *store.Store, limit int, userID string) (*Report, error) {
+	tasks, err := st.ListTasks(ctx, limit, "", userID)
 	if err != nil {
 		return nil, err
 	}

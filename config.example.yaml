@@ -4,7 +4,11 @@ server:
   cors_origins:
     - "http://localhost:5273"
     - "http://127.0.0.1:5273"
-  # 非空时要求 Authorization: Bearer 或 ?token=
+  # JWT 签名密钥（生产环境务必更换）
+  jwt_secret: "eino-dev-jwt-secret-change-me"
+  # Token 有效期
+  jwt_expire: 168h
+  # 可选：额外静态 Bearer，便于 CLI/脚本（与 JWT 并存）
   auth_token: ""
 
 database:

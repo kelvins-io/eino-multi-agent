@@ -31,6 +31,7 @@ type CreateInput struct {
 	Skills        []string
 	ProjectID     string
 	ScheduleID    string
+	UserID        string
 	Files         []Upload
 }
 
@@ -97,6 +98,9 @@ func (r *Runtime) Create(ctx context.Context, in CreateInput) (*store.Task, erro
 		if err != nil {
 			return nil, fmt.Errorf("project: %w", err)
 		}
+		if in.UserID != "" && proj.UserID != "" && proj.UserID != in.UserID {
+			return nil, fmt.Errorf("project: %w", gorm.ErrRecordNotFound)
+		}
 		shared := workspace.ProjectSharedDir(proj.Workspace)
 		if _, err := os.Stat(shared); err == nil {
 			if err := workspace.CopyTree(shared, sb.InputDir()); err != nil {
@@ -110,6 +114,7 @@ func (r *Runtime) Create(ctx context.Context, in CreateInput) (*store.Task, erro
 	}
 	task := &store.Task{
 		ID:            id,
+		UserID:        in.UserID,
 		Title:         title,
 		Goal:          in.Goal,
 		Status:        store.StatusQueued,

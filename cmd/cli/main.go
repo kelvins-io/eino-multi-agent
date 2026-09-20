@@ -93,6 +93,9 @@ func do(method, url, contentType string, body io.Reader) string {
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
+	if tok := getenv("EINO_API_TOKEN", ""); tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
+	}
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {

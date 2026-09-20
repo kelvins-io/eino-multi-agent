@@ -13,6 +13,7 @@ const (
 
 type Task struct {
 	ID            string     `gorm:"primaryKey;size:36" json:"id"`
+	UserID        string     `gorm:"size:36;index" json:"user_id,omitempty"`
 	Title         string     `gorm:"size:255" json:"title"`
 	Goal          string     `gorm:"type:text" json:"goal"`
 	Status        string     `gorm:"size:32;index" json:"status"`
@@ -75,6 +76,7 @@ func (Checkpoint) TableName() string { return "checkpoints" }
 
 type Project struct {
 	ID          string    `gorm:"primaryKey;size:36" json:"id"`
+	UserID      string    `gorm:"size:36;index" json:"user_id,omitempty"`
 	Name        string    `gorm:"size:255" json:"name"`
 	Description string    `gorm:"type:text" json:"description"`
 	Workspace   string    `gorm:"size:1024" json:"workspace"`
@@ -86,6 +88,7 @@ func (Project) TableName() string { return "projects" }
 
 type Schedule struct {
 	ID            string     `gorm:"primaryKey;size:36" json:"id"`
+	UserID        string     `gorm:"size:36;index" json:"user_id,omitempty"`
 	ProjectID     string     `gorm:"size:36;index" json:"project_id,omitempty"`
 	Title         string     `gorm:"size:255" json:"title"`
 	Goal          string     `gorm:"type:text" json:"goal"`
@@ -108,6 +111,7 @@ func (Schedule) TableName() string { return "schedules" }
 
 type Connector struct {
 	ID        string            `gorm:"primaryKey;size:36" json:"id"`
+	UserID    string            `gorm:"size:36;index" json:"user_id,omitempty"`
 	Name      string            `gorm:"size:255" json:"name"`
 	Kind      string            `gorm:"size:32" json:"kind"`
 	Config    map[string]string `gorm:"serializer:json;type:jsonb" json:"config"`
@@ -120,6 +124,7 @@ func (Connector) TableName() string { return "connectors" }
 
 type AuditLog struct {
 	ID         uint64    `gorm:"primaryKey" json:"id"`
+	UserID     string    `gorm:"size:36;index" json:"user_id,omitempty"`
 	Actor      string    `gorm:"size:128;index" json:"actor"`
 	Action     string    `gorm:"size:64;index" json:"action"`
 	TargetType string    `gorm:"size:32;index" json:"target_type"`
@@ -129,3 +134,14 @@ type AuditLog struct {
 }
 
 func (AuditLog) TableName() string { return "audit_logs" }
+
+type User struct {
+	ID           string    `gorm:"primaryKey;size:36" json:"id"`
+	Username     string    `gorm:"size:64;uniqueIndex" json:"username"`
+	DisplayName  string    `gorm:"size:64" json:"display_name"`
+	PasswordHash string    `gorm:"size:255" json:"-"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+func (User) TableName() string { return "users" }

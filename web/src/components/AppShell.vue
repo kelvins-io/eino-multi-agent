@@ -12,6 +12,10 @@
         <router-link to="/eval" :class="{ 'is-active': route.path.startsWith('/eval') }">评估</router-link>
       </nav>
       <slot name="side" />
+      <div class="side-user">
+        <div class="side-user-name" :title="user?.username || ''">{{ user?.display_name || user?.username || '用户' }}</div>
+        <el-button size="small" @click="logout">退出</el-button>
+      </div>
     </aside>
     <main class="main">
       <slot />
@@ -20,7 +24,16 @@
 </template>
 
 <script setup>
-import { useRoute } from 'vue-router'
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { clearSession, getUser } from '../auth'
 
 const route = useRoute()
+const router = useRouter()
+const user = computed(() => getUser())
+
+const logout = () => {
+  clearSession()
+  router.replace('/login')
+}
 </script>

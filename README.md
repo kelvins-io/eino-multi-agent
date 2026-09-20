@@ -65,7 +65,7 @@ cd web && npm install && npm run dev
 # 注册（或改用 /auth/login）
 curl -s -X POST http://127.0.0.1:8180/api/v1/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"username":"demo","password":"secret1"}'
+  -d '{"username":"demo","display_name":"演示用户","password":"secret1"}'
 # 将返回的 token 写入环境变量
 export EINO_API_TOKEN=<your-jwt>
 
@@ -116,7 +116,7 @@ go run ./cmd/server
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/health` | 健康检查 |
-| POST | `/auth/register` | 注册，返回 JWT |
+| POST | `/auth/register` | 注册 `{"username","display_name","password"}`，返回 JWT |
 | POST | `/auth/login` | 登录，返回 JWT |
 | GET | `/auth/me` | 当前用户 |
 | GET | `/meta` | 模型就绪状态、技能列表、确认策略 |

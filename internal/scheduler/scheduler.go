@@ -74,6 +74,7 @@ func (s *Scheduler) run(ctx context.Context, item *store.Schedule, now time.Time
 		Skills:        item.Skills,
 		ProjectID:     item.ProjectID,
 		ScheduleID:    item.ID,
+		UserID:        item.UserID,
 	})
 	if err != nil {
 		return nil, err

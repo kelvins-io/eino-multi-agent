@@ -46,6 +46,7 @@ func (r *Runtime) Recover(ctx context.Context) {
 			resume = true
 		}
 		_ = r.store.CreateAudit(ctx, &store.AuditLog{
+			UserID:     task.UserID,
 			Actor:      "system",
 			Action:     "task.recover",
 			TargetType: "task",
