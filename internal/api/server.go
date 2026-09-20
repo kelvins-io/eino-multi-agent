@@ -15,9 +15,11 @@ import (
 	"github.com/kelvins-io/eino-multi-agent/internal/config"
 	"github.com/kelvins-io/eino-multi-agent/internal/connector"
 	"github.com/kelvins-io/eino-multi-agent/internal/harness"
+	"github.com/kelvins-io/eino-multi-agent/internal/logx"
 	"github.com/kelvins-io/eino-multi-agent/internal/scheduler"
 	"github.com/kelvins-io/eino-multi-agent/internal/store"
 	"github.com/kelvins-io/eino-multi-agent/internal/workspace"
+	"go.uber.org/zap"
 )
 
 type Server struct {
@@ -32,7 +34,7 @@ type Server struct {
 func New(cfg *config.Config, st *store.Store, rt *harness.Runtime, sched *scheduler.Scheduler, connectors *connector.Registry) *Server {
 	gin.SetMode(cfg.Server.Mode)
 	r := gin.New()
-	r.Use(gin.Recovery(), gin.Logger(), cors(cfg.Server.CORSOrigins))
+	r.Use(logx.GinRecovery(), logx.GinLogger(), cors(cfg.Server.CORSOrigins))
 	s := &Server{cfg: cfg, store: st, runtime: rt, sched: sched, connectors: connectors, engine: r}
 	r.Use(s.requireAuth())
 	s.routes()
@@ -200,6 +202,12 @@ func (s *Server) createTask(c *gin.Context) {
 		return
 	}
 	s.audit(c, "task.create", "task", task.ID, task.Title)
+	logx.Named("api").Info("task created",
+		zap.String("task_id", task.ID),
+		zap.String("user_id", userID),
+		zap.String("title", task.Title),
+		zap.String("project_id", projectID),
+	)
 	c.JSON(http.StatusCreated, task)
 }
 

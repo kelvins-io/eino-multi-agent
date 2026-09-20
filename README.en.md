@@ -153,6 +153,10 @@ Copy `config.example.yaml` / `.env.example`. Common environment variables:
 | `EINO_DATABASE_DSN` | Postgres DSN |
 | `EINO_SERVER_ADDR` | HTTP listen address, e.g. `:8180` |
 | `EINO_SERVER_MODE` | Gin mode, e.g. `debug` / `release` |
+| `EINO_LOG_LEVEL` | Log level: `debug` / `info` / `warn` / `error` |
+| `EINO_LOG_FORMAT` | Log format: `console` / `json` (json by default in release) |
+| `EINO_LOG_FILE` | If set, write daily files `<name>-YYYY-MM-DD.log` |
+| `EINO_LOG_KEEP_DAYS` | Days to keep log files, default `14`; `0` keeps all |
 | `EINO_JWT_SECRET` | JWT signing secret (change in production) |
 | `EINO_JWT_EXPIRE` | Token lifetime, default `168h` |
 | `EINO_AUTH_TOKEN` | Optional static Bearer alongside JWT |

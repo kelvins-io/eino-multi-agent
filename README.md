@@ -154,6 +154,10 @@ go run ./cmd/server
 | `EINO_DATABASE_DSN` | Postgres 连接串 |
 | `EINO_SERVER_ADDR` | HTTP 监听地址，示例 `:8180` |
 | `EINO_SERVER_MODE` | Gin 模式，如 `debug` / `release` |
+| `EINO_LOG_LEVEL` | 日志级别：`debug` / `info` / `warn` / `error` |
+| `EINO_LOG_FORMAT` | 日志格式：`console` / `json`（release 默认 json） |
+| `EINO_LOG_FILE` | 非空则按天写入 `<名>-YYYY-MM-DD.log` |
+| `EINO_LOG_KEEP_DAYS` | 日志保留天数，默认 `14`，`0` 不清理 |
 | `EINO_JWT_SECRET` | JWT 签名密钥（生产务必更换） |
 | `EINO_JWT_EXPIRE` | Token 有效期，默认 `168h` |
 | `EINO_AUTH_TOKEN` | 可选静态 Bearer，与 JWT 并存（便于脚本探测） |

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,8 +18,10 @@ import (
 	"github.com/kelvins-io/eino-multi-agent/internal/agent"
 	"github.com/kelvins-io/eino-multi-agent/internal/config"
 	"github.com/kelvins-io/eino-multi-agent/internal/confirm"
+	"github.com/kelvins-io/eino-multi-agent/internal/logx"
 	"github.com/kelvins-io/eino-multi-agent/internal/store"
 	"github.com/kelvins-io/eino-multi-agent/internal/workspace"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -298,6 +299,12 @@ func (r *Runtime) start(taskID string, resume bool, approved bool) {
 		t.InterruptInfo = ""
 	})
 	r.emit(ctx, taskID, "status", "", "任务开始执行", "")
+	logx.Named("harness").Info("task started",
+		zap.String("task_id", taskID),
+		zap.String("user_id", task.UserID),
+		zap.Bool("resume", resume),
+		zap.String("title", task.Title),
+	)
 
 	var iter *adk.AsyncIterator[*adk.AgentEvent]
 	if resume {
@@ -373,6 +380,10 @@ func (r *Runtime) start(taskID string, resume bool, approved bool) {
 		t.ErrorMessage = ""
 	})
 	r.emit(ctx, taskID, "status", "", "任务完成", "")
+	logx.Named("harness").Info("task succeeded",
+		zap.String("task_id", taskID),
+		zap.String("user_id", task.UserID),
+	)
 	r.finishSuccess(ctx, taskID, sb)
 }
 
@@ -404,6 +415,12 @@ func (r *Runtime) fail(ctx context.Context, task *store.Task, err error) {
 		t.ErrorMessage = msg
 	})
 	r.emit(ctx, task.ID, "error", "", msg, "")
+	logx.Named("harness").Error("task failed",
+		zap.String("task_id", task.ID),
+		zap.String("user_id", task.UserID),
+		zap.String("message", msg),
+		zap.Error(err),
+	)
 }
 
 func (r *Runtime) refreshArtifacts(ctx context.Context, taskID string, sb *workspace.Sandbox) error {
@@ -433,7 +450,11 @@ func (r *Runtime) emit(ctx context.Context, taskID, typ, agentName, message, pay
 		Payload: payload,
 	}
 	if err := r.store.AppendEvent(ctx, ev); err != nil {
-		log.Printf("append event: %v", err)
+		logx.Named("harness").Warn("append event failed",
+			zap.String("task_id", taskID),
+			zap.String("type", typ),
+			zap.Error(err),
+		)
 		return
 	}
 	r.bus.Publish(Event{

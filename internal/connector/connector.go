@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"path/filepath"
 	"time"
 
+	"github.com/kelvins-io/eino-multi-agent/internal/logx"
 	"github.com/kelvins-io/eino-multi-agent/internal/store"
 	"github.com/kelvins-io/eino-multi-agent/internal/workspace"
+	"go.uber.org/zap"
 )
 
 const (
@@ -46,13 +47,28 @@ func (r *Registry) Notify(ctx context.Context, ev Event) {
 	}
 	items, err := r.store.EnabledConnectors(ctx, userID)
 	if err != nil {
-		log.Printf("list connectors: %v", err)
+		logx.Named("connector").Error("list connectors", zap.String("user_id", userID), zap.Error(err))
 		return
 	}
 	for i := range items {
 		item := items[i]
+		taskID := ""
+		if ev.Task != nil {
+			taskID = ev.Task.ID
+		}
 		if err := r.Invoke(ctx, &item, ev); err != nil {
-			log.Printf("connector %s: %v", item.ID, err)
+			logx.Named("connector").Warn("invoke failed",
+				zap.String("connector_id", item.ID),
+				zap.String("kind", item.Kind),
+				zap.String("task_id", taskID),
+				zap.Error(err),
+			)
+		} else {
+			logx.Named("connector").Info("invoked",
+				zap.String("connector_id", item.ID),
+				zap.String("kind", item.Kind),
+				zap.String("task_id", taskID),
+			)
 		}
 	}
 }

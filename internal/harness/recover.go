@@ -2,9 +2,10 @@ package harness
 
 import (
 	"context"
-	"log"
 
+	"github.com/kelvins-io/eino-multi-agent/internal/logx"
 	"github.com/kelvins-io/eino-multi-agent/internal/store"
+	"go.uber.org/zap"
 )
 
 const (
@@ -28,11 +29,17 @@ func PlanRecover(status string, hasCheckpoint bool) string {
 }
 
 func (r *Runtime) Recover(ctx context.Context) {
+	log := logx.Named("recover")
 	items, err := r.store.ListInFlight(ctx)
 	if err != nil {
-		log.Printf("recover list in-flight: %v", err)
+		log.Error("list in-flight tasks", zap.Error(err))
 		return
 	}
+	if len(items) == 0 {
+		log.Info("no in-flight tasks to recover")
+		return
+	}
+	log.Info("recovering in-flight tasks", zap.Int("count", len(items)))
 	for i := range items {
 		task := items[i]
 		action := PlanRecover(task.Status, r.cp.Exists(ctx, task.ID))
@@ -53,6 +60,12 @@ func (r *Runtime) Recover(ctx context.Context) {
 			TargetID:   task.ID,
 			Detail:     action,
 		})
+		log.Info("recover task",
+			zap.String("task_id", task.ID),
+			zap.String("user_id", task.UserID),
+			zap.String("action", action),
+			zap.String("status", task.Status),
+		)
 		r.emit(ctx, task.ID, "system", "", msg, "")
 		go r.start(task.ID, resume, false)
 	}

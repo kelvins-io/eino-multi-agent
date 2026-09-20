@@ -1,6 +1,14 @@
 server:
   addr: ":8180"
   mode: debug
+  # debug|info|warn|error
+  log_level: info
+  # console|json（release 模式默认 json）
+  log_format: console
+  # 非空则按天写入 <文件名>-YYYY-MM-DD.log（仍会输出到 stdout）
+  log_file: ""
+  # 保留天数，超过则删除；0 表示不清理
+  log_keep_days: 14
   cors_origins:
     - "http://localhost:5273"
     - "http://127.0.0.1:5273"

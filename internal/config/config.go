@@ -23,6 +23,10 @@ type Config struct {
 type ServerConfig struct {
 	Addr        string        `yaml:"addr"`
 	Mode        string        `yaml:"mode"`
+	LogLevel    string        `yaml:"log_level"`
+	LogFormat   string        `yaml:"log_format"`
+	LogFile     string        `yaml:"log_file"`
+	LogKeepDays int           `yaml:"log_keep_days"`
 	CORSOrigins []string      `yaml:"cors_origins"`
 	AuthToken   string        `yaml:"auth_token"` // 可选：静态 Bearer，兼容旧 CLI/脚本
 	JWTSecret   string        `yaml:"jwt_secret"`
@@ -72,7 +76,10 @@ func Default() *Config {
 				"http://localhost:5173",
 				"http://127.0.0.1:5173",
 			},
-			JWTSecret: "eino-dev-jwt-secret-change-me",
+			LogLevel:    "info",
+			LogFormat:   "console",
+			LogKeepDays: 14,
+			JWTSecret:   "eino-dev-jwt-secret-change-me",
 			JWTExpire: 168 * time.Hour,
 		},
 		Database: DatabaseConfig{
@@ -158,6 +165,19 @@ func (c *Config) normalize() error {
 	if c.Server.JWTExpire <= 0 {
 		c.Server.JWTExpire = 168 * time.Hour
 	}
+	if strings.TrimSpace(c.Server.LogLevel) == "" {
+		c.Server.LogLevel = "info"
+	}
+	if strings.TrimSpace(c.Server.LogFormat) == "" {
+		if strings.EqualFold(c.Server.Mode, "release") {
+			c.Server.LogFormat = "json"
+		} else {
+			c.Server.LogFormat = "console"
+		}
+	}
+	if c.Server.LogKeepDays < 0 {
+		c.Server.LogKeepDays = 14
+	}
 	return nil
 }
 
@@ -167,6 +187,20 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("EINO_SERVER_MODE"); v != "" {
 		cfg.Server.Mode = v
+	}
+	if v := os.Getenv("EINO_LOG_LEVEL"); v != "" {
+		cfg.Server.LogLevel = v
+	}
+	if v := os.Getenv("EINO_LOG_FORMAT"); v != "" {
+		cfg.Server.LogFormat = v
+	}
+	if v := os.Getenv("EINO_LOG_FILE"); v != "" {
+		cfg.Server.LogFile = v
+	}
+	if v := os.Getenv("EINO_LOG_KEEP_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Server.LogKeepDays = n
+		}
 	}
 	if v := os.Getenv("EINO_AUTH_TOKEN"); v != "" {
 		cfg.Server.AuthToken = v

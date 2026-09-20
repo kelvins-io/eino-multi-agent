@@ -10,7 +10,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/kelvins-io/eino-multi-agent/internal/logx"
 	"github.com/kelvins-io/eino-multi-agent/internal/store"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -73,6 +75,10 @@ func (s *Server) register(c *gin.Context) {
 	c.Set(ctxUserID, user.ID)
 	c.Set(ctxUsername, user.Username)
 	s.audit(c, "auth.register", "user", user.ID, user.Username)
+	logx.Named("auth").Info("user registered",
+		zap.String("user_id", user.ID),
+		zap.String("username", user.Username),
+	)
 	c.JSON(http.StatusCreated, gin.H{
 		"token":      token,
 		"expires_at": expiresAt,
@@ -94,6 +100,7 @@ func (s *Server) login(c *gin.Context) {
 	user, err := s.store.GetUserByUsername(c.Request.Context(), username)
 	if err != nil {
 		if store.IsNotFound(err) {
+			logx.Named("auth").Warn("login failed", zap.String("username", username))
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid username or password"})
 			return
 		}
@@ -101,6 +108,7 @@ func (s *Server) login(c *gin.Context) {
 		return
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		logx.Named("auth").Warn("login failed", zap.String("username", username))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid username or password"})
 		return
 	}
@@ -112,6 +120,10 @@ func (s *Server) login(c *gin.Context) {
 	c.Set(ctxUserID, user.ID)
 	c.Set(ctxUsername, user.Username)
 	s.audit(c, "auth.login", "user", user.ID, user.Username)
+	logx.Named("auth").Info("user login",
+		zap.String("user_id", user.ID),
+		zap.String("username", user.Username),
+	)
 	c.JSON(http.StatusOK, gin.H{
 		"token":      token,
 		"expires_at": expiresAt,
