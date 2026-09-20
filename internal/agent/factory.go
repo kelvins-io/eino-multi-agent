@@ -50,7 +50,7 @@ func (f *Factory) Build(ctx context.Context, req BuildRequest) (adk.ResumableAge
 		Name:        "research",
 		Description: "检索公开网页、阅读资料并整理研究结论",
 		ChatModel:   f.model,
-		Instruction: "你是调研子代理。使用 web_search 和 fetch_url 收集信息，把结论写进工作区 output/。使用绝对路径。",
+		Instruction: "你是调研子代理。使用 web_search 和 fetch_url 收集信息，把结论写进工作区 output/。文件用相对路径 input/、output/、tmp/，不要写 /tmp 或猜测仓库盘符。",
 		Backend:     backend,
 		ToolsConfig: adk.ToolsConfig{
 			ToolsNodeConfig: compose.ToolsNodeConfig{Tools: tools},
@@ -69,7 +69,7 @@ func (f *Factory) Build(ctx context.Context, req BuildRequest) (adk.ResumableAge
 		Name:                   "office",
 		Description:            "用 Python 处理 CSV/Excel 并生成 Markdown、CSV、表格类交付物",
 		ChatModel:              f.model,
-		Instruction:            "你是办公产出子代理。优先用 python3 处理表格、生成图表数据和 Markdown。产物必须写到 output/。使用绝对路径。不要安装系统包。",
+		Instruction:            "你是办公产出子代理。优先用 python3 处理表格、生成图表数据和 Markdown。产物必须写到 output/。脚本与数据一律用相对路径，例如 python3 tmp/compute.py、input/sales.csv、output/report.md。不要写 /tmp、/compute.py，也不要猜测仓库盘符。不要安装系统包。",
 		Backend:                backend,
 		StreamingShell:         backend,
 		WithoutWriteTodos:      true,
