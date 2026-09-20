@@ -1,5 +1,7 @@
 # eino-multi-agent
 
+**中文** | [English](./README.en.md)
+
 基于 CloudWeGo Eino 的长任务工作 Harness，对标「豆包工作任务」的核心路径：下达目标、拆解执行、确认风险操作、交付可下载产物。
 
 ## 功能概览
