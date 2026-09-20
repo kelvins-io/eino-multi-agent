@@ -8,6 +8,7 @@ A long-running work harness built on CloudWeGo Eino. It mirrors the core loop of
 
 | Capability | Description |
 |---|---|
+| User accounts | Register / login issues JWTs; tasks, projects, schedules, and connectors are scoped per user |
 | Task execution | Create a goal, upload inputs, pick skills; DeepAgent iterates in a sandbox with SSE event streaming |
 | Risk confirmation | Policies `on_risk` / `always` / `never`; overwrite, delete, dangerous shell, outbound POST, etc. pause for approval |
 | Artifact delivery | Scan `output/` with list, preview, and download |
@@ -17,7 +18,7 @@ A long-running work harness built on CloudWeGo Eino. It mirrors the core loop of
 | Audit log | Critical writes and system recovery actions are persisted and viewable in the UI |
 | Eval report | Score historical tasks against built-in cases (weekly report / research / organize) |
 | Crash recovery | After restart, resume or re-run `queued` / `running` tasks from checkpoints |
-| API auth | When `auth_token` is set, require `Authorization: Bearer` or `?token=` |
+| API auth | Business APIs require a JWT (`Authorization: Bearer` or `?token=`); optional static `auth_token` coexists with JWT |
 
 Built-in skills (`skills/`):
 
@@ -43,6 +44,7 @@ docker compose up -d
 cp config.example.yaml config.yaml
 cp .env.example .env
 # Edit .env; set at least EINO_LLM_API_KEY / EINO_LLM_MODEL
+# Change EINO_JWT_SECRET in production
 
 # 3. Start API (default :8180, see .env)
 go run ./cmd/server
@@ -51,13 +53,21 @@ go run ./cmd/server
 cd web && npm install && npm run dev
 ```
 
-Open http://localhost:5273
+Open http://localhost:5273 and register / sign in first.
 
 Sample task: upload `testdata/sample/sales.csv`, set the goal to “Generate this week’s sales report from input/sales.csv”, and select skill `weekly-report`.
 
 ### CLI
 
+Business APIs need a user JWT. Register or log in, then set `EINO_API_TOKEN`:
+
 ```bash
+# Register (or use /auth/login)
+curl -s -X POST http://127.0.0.1:8180/api/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"demo","password":"secret1"}'
+export EINO_API_TOKEN=<your-jwt>
+
 # Defaults to http://127.0.0.1:8180; override with EINO_API_BASE
 go run ./cmd/cli create --goal "Generate a weekly report from input/sales.csv" --file testdata/sample/sales.csv --skills weekly-report
 go run ./cmd/cli list
@@ -75,7 +85,7 @@ Score historical tasks against built-in cases and print JSON:
 go run ./cmd/eval -limit 200
 ```
 
-Also available on the Eval page or `GET /api/v1/eval`.
+Also available on the Eval page or `GET /api/v1/eval` (auth required).
 
 ### Production build
 
@@ -90,6 +100,7 @@ go run ./cmd/server
 
 | Page | Path | Purpose |
 |---|---|---|
+| Login / Register | `/login` · `/register` | Account auth; unauthenticated users are redirected here |
 | Tasks | `/` | Create/list, event stream, confirm, retry, artifact preview/download |
 | Projects | `/projects` | Project management and shared file uploads |
 | Schedules | `/schedules` | Create/toggle/run schedules immediately |
@@ -99,9 +110,14 @@ go run ./cmd/server
 
 ## HTTP API (`/api/v1`)
 
+Public (no token): `GET /health`, `POST /auth/register`, `POST /auth/login`, `POST /hooks/echo`. All other endpoints require a JWT (or optional static `auth_token`). Create/list and similar business APIs need a logged-in user; data is isolated by `user_id`.
+
 | Method | Path | Description |
 |---|---|---|
-| GET | `/health` | Health check (allowed even when auth is on) |
+| GET | `/health` | Health check |
+| POST | `/auth/register` | Register and receive a JWT |
+| POST | `/auth/login` | Log in and receive a JWT |
+| GET | `/auth/me` | Current user |
 | GET | `/meta` | Model readiness, skills, confirm policies |
 | GET/POST | `/tasks` | List / create (multipart upload supported) |
 | GET | `/tasks/:id` | Detail (events + artifacts) |
@@ -119,9 +135,11 @@ go run ./cmd/server
 | GET/POST | `/connectors` | List / create connectors |
 | POST | `/connectors/:id/toggle` | Enable/disable |
 | POST | `/connectors/:id/test` | Test delivery |
-| POST | `/hooks/echo` | Webhook debug echo (auth bypass) |
+| POST | `/hooks/echo` | Webhook debug echo |
 | GET | `/audit` | Audit logs |
 | GET | `/eval` | Eval report |
+
+Register/login body: `{"username":"...","password":"..."}` (username 3–64, letters/digits/`_`/`-` only; password 6–128). Success response includes `token`, `expires_at`, and `user`.
 
 Task status: `queued` → `running` → (optional `waiting_confirm`) → `succeeded` / `failed` / `cancelled`.
 
@@ -135,7 +153,11 @@ Copy `config.example.yaml` / `.env.example`. Common environment variables:
 | `EINO_DATABASE_DSN` | Postgres DSN |
 | `EINO_SERVER_ADDR` | HTTP listen address, e.g. `:8180` |
 | `EINO_SERVER_MODE` | Gin mode, e.g. `debug` / `release` |
-| `EINO_AUTH_TOKEN` | Non-empty enables API Bearer auth |
+| `EINO_JWT_SECRET` | JWT signing secret (change in production) |
+| `EINO_JWT_EXPIRE` | Token lifetime, default `168h` |
+| `EINO_AUTH_TOKEN` | Optional static Bearer alongside JWT |
+| `EINO_API_TOKEN` | Bearer used by the CLI (JWT from login) |
+| `EINO_API_BASE` | CLI API base URL |
 | `EINO_LLM_PROVIDER` | `openai` / `ark` / `ollama` |
 | `EINO_LLM_API_KEY` | Model API key |
 | `EINO_LLM_BASE_URL` | OpenAI-compatible gateway; optional |
@@ -158,14 +180,14 @@ LLM examples are in `.env.example` (OpenAI-compatible, Volcengine Ark, local Oll
 cmd/server          # HTTP server entry
 cmd/cli             # Task CLI
 cmd/eval            # Eval CLI
-internal/api        # Gin routes and auth
+internal/api        # Gin routes, JWT auth, per-user scoping
 internal/harness    # Runtime, checkpoint recovery, event bus
 internal/agent      # DeepAgent factory, tools, skills
 internal/confirm    # Risk classification and confirm gate
 internal/scheduler  # Scheduled runs
 internal/connector  # Webhook / local-dir delivery
 internal/eval       # Case scoring
-internal/store      # GORM models and persistence
+internal/store      # GORM models and persistence (incl. users)
 internal/workspace  # Sandbox and project shared dirs
 skills/             # Built-in SKILL.md files
 web/                # Vue console
