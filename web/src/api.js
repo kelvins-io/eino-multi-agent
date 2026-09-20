@@ -45,6 +45,9 @@ export const createConnector = (payload) => http.post('/connectors', payload).th
 export const toggleConnector = (id) => http.post(`/connectors/${id}/toggle`).then((r) => r.data)
 export const testConnector = (id) => http.post(`/connectors/${id}/test`).then((r) => r.data)
 
+export const listAudit = () => http.get('/audit').then((r) => r.data.items || [])
+export const getEval = () => http.get('/eval').then((r) => r.data)
+
 export const cancelTask = (id) => http.post(`/tasks/${id}/cancel`).then((r) => r.data)
 export const retryTask = (id) => http.post(`/tasks/${id}/retry`).then((r) => r.data)
 export const confirmTask = (id, approved) =>

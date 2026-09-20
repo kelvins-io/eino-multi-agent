@@ -29,7 +29,7 @@ func Open(cfg config.DatabaseConfig) (*Store, error) {
 	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
 	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(time.Hour)
-	if err := db.AutoMigrate(&Task{}, &TaskEvent{}, &Artifact{}, &Checkpoint{}, &Project{}, &Schedule{}, &Connector{}); err != nil {
+	if err := db.AutoMigrate(&Task{}, &TaskEvent{}, &Artifact{}, &Checkpoint{}, &Project{}, &Schedule{}, &Connector{}, &AuditLog{}); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return &Store{db: db}, nil

@@ -49,6 +49,7 @@ func main() {
 	})
 	sched := scheduler.New(st, rt, 20*time.Second)
 	sched.Start(context.Background())
+	rt.Recover(context.Background())
 	srv := api.New(cfg, st, rt, sched, reg)
 	log.Printf("work harness listening on %s", cfg.Server.Addr)
 	if err := srv.Engine().Run(cfg.Server.Addr); err != nil {

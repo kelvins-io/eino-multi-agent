@@ -34,6 +34,7 @@ func New(cfg *config.Config, st *store.Store, rt *harness.Runtime, sched *schedu
 	r := gin.New()
 	r.Use(gin.Recovery(), gin.Logger(), cors(cfg.Server.CORSOrigins))
 	s := &Server{cfg: cfg, store: st, runtime: rt, sched: sched, connectors: connectors, engine: r}
+	r.Use(s.requireAuth())
 	s.routes()
 	return s
 }
@@ -70,6 +71,8 @@ func (s *Server) routes() {
 	api.POST("/connectors/:id/toggle", s.toggleConnector)
 	api.POST("/connectors/:id/test", s.testConnector)
 	api.POST("/hooks/echo", s.hookEcho)
+	api.GET("/audit", s.listAudit)
+	api.GET("/eval", s.getEval)
 
 	s.engine.NoRoute(s.spa)
 }
@@ -100,6 +103,7 @@ func (s *Server) meta(c *gin.Context) {
 		},
 		"confirm_policies": []string{"on_risk", "always", "never"},
 		"skills":           skills,
+		"auth_required":    s.cfg.Server.AuthToken != "",
 	})
 }
 
@@ -175,6 +179,7 @@ func (s *Server) createTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	s.audit(c, "task.create", "task", task.ID, task.Title)
 	c.JSON(http.StatusCreated, task)
 }
 
@@ -198,6 +203,7 @@ func (s *Server) cancelTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	s.audit(c, "task.cancel", "task", c.Param("id"), "")
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
@@ -211,6 +217,7 @@ func (s *Server) retryTask(c *gin.Context) {
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
+	s.audit(c, "task.retry", "task", task.ID, "")
 	c.JSON(http.StatusOK, task)
 }
 
@@ -226,6 +233,11 @@ func (s *Server) confirmTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	detail := "rejected"
+	if body.Approved {
+		detail = "approved"
+	}
+	s.audit(c, "task.confirm", "task", c.Param("id"), detail)
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 

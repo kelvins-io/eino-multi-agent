@@ -296,9 +296,13 @@ func (r *Runtime) start(taskID string, resume bool, approved bool) {
 
 	var iter *adk.AsyncIterator[*adk.AgentEvent]
 	if resume {
-		iter, err = runner.ResumeWithParams(ctx, taskID, &adk.ResumeParams{
-			Targets: map[string]any{task.InterruptID: approved},
-		}, cancelOpt)
+		if task.InterruptID != "" {
+			iter, err = runner.ResumeWithParams(ctx, taskID, &adk.ResumeParams{
+				Targets: map[string]any{task.InterruptID: approved},
+			}, cancelOpt)
+		} else {
+			iter, err = runner.Resume(ctx, taskID, cancelOpt)
+		}
 		if err != nil {
 			r.fail(ctx, task, err)
 			return

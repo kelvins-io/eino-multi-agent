@@ -35,3 +35,8 @@ func (c *CheckpointStore) Set(ctx context.Context, checkPointID string, checkPoi
 func (c *CheckpointStore) Delete(ctx context.Context, checkPointID string) error {
 	return c.store.db.WithContext(ctx).Delete(&Checkpoint{}, "id = ?", checkPointID).Error
 }
+
+func (c *CheckpointStore) Exists(ctx context.Context, checkPointID string) bool {
+	_, ok, err := c.Get(ctx, checkPointID)
+	return err == nil && ok
+}

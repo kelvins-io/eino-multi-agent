@@ -4,6 +4,8 @@ server:
   cors_origins:
     - "http://localhost:5273"
     - "http://127.0.0.1:5273"
+  # 非空时要求 Authorization: Bearer 或 ?token=
+  auth_token: ""
 
 database:
   dsn: "postgres://eino:eino@127.0.0.1:14432/eino_work?sslmode=disable"

@@ -82,3 +82,25 @@ func (s *Store) EnabledConnectors(ctx context.Context) ([]Connector, error) {
 	err := s.db.WithContext(ctx).Where("enabled = ?", true).Find(&items).Error
 	return items, err
 }
+
+func (s *Store) ListInFlight(ctx context.Context) ([]Task, error) {
+	var items []Task
+	err := s.db.WithContext(ctx).
+		Where("status IN ?", []string{StatusQueued, StatusRunning}).
+		Order("created_at ASC").
+		Find(&items).Error
+	return items, err
+}
+
+func (s *Store) CreateAudit(ctx context.Context, item *AuditLog) error {
+	return s.db.WithContext(ctx).Create(item).Error
+}
+
+func (s *Store) ListAudit(ctx context.Context, limit int) ([]AuditLog, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	var items []AuditLog
+	err := s.db.WithContext(ctx).Order("id DESC").Limit(limit).Find(&items).Error
+	return items, err
+}

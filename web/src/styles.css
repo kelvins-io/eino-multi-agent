@@ -300,3 +300,19 @@ body {
   line-height: 1.55;
   margin: 0;
 }
+
+.eval-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.eval-case {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  background: #f8fafc;
+}

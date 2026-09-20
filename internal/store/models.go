@@ -117,3 +117,15 @@ type Connector struct {
 }
 
 func (Connector) TableName() string { return "connectors" }
+
+type AuditLog struct {
+	ID         uint64    `gorm:"primaryKey" json:"id"`
+	Actor      string    `gorm:"size:128;index" json:"actor"`
+	Action     string    `gorm:"size:64;index" json:"action"`
+	TargetType string    `gorm:"size:32;index" json:"target_type"`
+	TargetID   string    `gorm:"size:64;index" json:"target_id"`
+	Detail     string    `gorm:"type:text" json:"detail,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+func (AuditLog) TableName() string { return "audit_logs" }

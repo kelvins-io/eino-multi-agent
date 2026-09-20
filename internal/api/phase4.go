@@ -42,6 +42,7 @@ func (s *Server) createProject(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	s.audit(c, "project.create", "project", p.ID, p.Name)
 	c.JSON(http.StatusCreated, p)
 }
 
@@ -156,6 +157,7 @@ func (s *Server) createSchedule(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	s.audit(c, "schedule.create", "schedule", item.ID, item.Title)
 	c.JSON(http.StatusCreated, item)
 }
 
@@ -169,6 +171,7 @@ func (s *Server) runSchedule(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	s.audit(c, "schedule.run", "schedule", c.Param("id"), task.ID)
 	c.JSON(http.StatusOK, task)
 }
 
@@ -223,6 +226,7 @@ func (s *Server) createConnector(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	s.audit(c, "connector.create", "connector", item.ID, item.Name)
 	c.JSON(http.StatusCreated, item)
 }
 
@@ -255,5 +259,6 @@ func (s *Server) testConnector(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	s.audit(c, "connector.test", "connector", item.ID, item.Name)
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }

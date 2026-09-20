@@ -24,6 +24,7 @@ type ServerConfig struct {
 	Addr        string   `yaml:"addr"`
 	Mode        string   `yaml:"mode"`
 	CORSOrigins []string `yaml:"cors_origins"`
+	AuthToken   string   `yaml:"auth_token"`
 }
 
 type DatabaseConfig struct {
@@ -156,6 +157,9 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("EINO_SERVER_MODE"); v != "" {
 		cfg.Server.Mode = v
+	}
+	if v := os.Getenv("EINO_AUTH_TOKEN"); v != "" {
+		cfg.Server.AuthToken = v
 	}
 	if v := os.Getenv("EINO_DATABASE_DSN"); v != "" {
 		cfg.Database.DSN = v
