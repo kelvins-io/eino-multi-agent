@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { appBase } from './base'
 import Home from './views/Home.vue'
 import Projects from './views/Projects.vue'
 import Schedules from './views/Schedules.vue'
@@ -10,7 +11,7 @@ import Register from './views/Register.vue'
 import { isLoggedIn } from './auth'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(appBase),
   routes: [
     { path: '/login', component: Login, meta: { public: true } },
     { path: '/register', component: Register, meta: { public: true } },

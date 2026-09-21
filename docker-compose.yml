@@ -66,12 +66,16 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
+      args:
+        VITE_BASE_PATH: ${VITE_BASE_PATH:-/}
     image: eino-multi-agent-web
     container_name: eino-work-web
     restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
+    environment:
+      VITE_BASE_PATH: ${VITE_BASE_PATH:-/}
     ports:
       - "${EINO_WEB_PORT:-8080}:80"
 

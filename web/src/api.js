@@ -1,8 +1,9 @@
 import axios from 'axios'
 import { clearSession, getToken, setSession } from './auth'
+import { stripBase, withBase } from './base'
 
 const http = axios.create({
-  baseURL: '/api/v1',
+  baseURL: withBase('/api/v1'),
   timeout: 30000,
 })
 
@@ -22,9 +23,9 @@ http.interceptors.response.use(
       const url = err.config?.url || ''
       if (!url.includes('/auth/login') && !url.includes('/auth/register')) {
         clearSession()
-        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-          const redirect = encodeURIComponent(window.location.pathname + window.location.search)
-          window.location.assign(`/login?redirect=${redirect}`)
+        if (typeof window !== 'undefined' && !stripBase(window.location.pathname).startsWith('/login')) {
+          const redirect = encodeURIComponent(stripBase(window.location.pathname) + window.location.search)
+          window.location.assign(`${withBase('/login')}?redirect=${redirect}`)
         }
       }
     }
@@ -100,7 +101,7 @@ export const artifactUrl = (taskId, artifactId, inline = false) => {
   if (inline) qs.set('inline', '1')
   if (token) qs.set('token', token)
   const q = qs.toString()
-  return `/api/v1/tasks/${taskId}/artifacts/${artifactId}${q ? `?${q}` : ''}`
+  return withBase(`/api/v1/tasks/${taskId}/artifacts/${artifactId}${q ? `?${q}` : ''}`)
 }
 
 export const getArtifactPreview = (taskId, artifactId) =>
@@ -110,7 +111,7 @@ export const openEventStream = (taskId, after, onEvent) => {
   const token = getToken()
   const qs = new URLSearchParams({ after: String(after || 0) })
   if (token) qs.set('token', token)
-  const url = `/api/v1/tasks/${taskId}/events?${qs.toString()}`
+  const url = withBase(`/api/v1/tasks/${taskId}/events?${qs.toString()}`)
   const es = new EventSource(url)
   es.addEventListener('task', (e) => {
     try {
