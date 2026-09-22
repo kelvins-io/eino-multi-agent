@@ -20,8 +20,13 @@ func GinLogger() gin.HandlerFunc {
 		start := time.Now()
 		path := c.Request.URL.Path
 		query := c.Request.URL.RawQuery
+		skip := path == "/health"
+
 		c.Next()
 
+		if skip {
+			return
+		}
 		latency := time.Since(start)
 		status := c.Writer.Status()
 		fields := []zap.Field{
@@ -43,8 +48,6 @@ func GinLogger() gin.HandlerFunc {
 		}
 
 		switch {
-		case path == "/api/v1/health":
-			log.Debug("request", fields...)
 		case status >= 500:
 			log.Error("request", fields...)
 		case status >= 400:
