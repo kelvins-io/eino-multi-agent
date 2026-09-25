@@ -1,0 +1,29 @@
+---
+description: Frontend UI design hard rules — composition, brand, typography, anti-AI-slop
+globs: web/**/*.{vue,css,js,html}, web/**/*.svg
+alwaysApply: false
+---
+
+# Frontend Design Rules
+
+Avoid generic, overbuilt layouts. Prefer one clear composition.
+
+**Exception:** When editing the existing `web/` UI, preserve established patterns, structure, CSS variables, and visual language in [web/src/styles.css](mdc:web/src/styles.css). These rules apply fully to new marketing/landing surfaces or intentional redesigns.
+
+## Hard Rules
+
+- **One composition:** First viewport reads as one composition, not a dashboard (unless it is a dashboard).
+- **Brand first:** On branded pages, brand/product name is hero-level—not only nav/eyebrow. No headline overpowers the brand.
+- **Brand test:** If the first viewport could belong to another brand after removing the nav, branding is too weak.
+- **Typography:** Use expressive, purposeful fonts. Avoid default stacks (Inter, Roboto, Arial, system-only).
+- **Background:** No flat single-color fills as the whole look; use gradients, images, or subtle patterns for atmosphere.
+- **Full-bleed hero:** On landing/promo surfaces, hero media is edge-to-edge by default. No inset heroes, side-panel heroes, rounded media cards, tiled collages, or floating image blocks unless the existing design system requires it.
+- **Hero budget:** First viewport = brand + one headline + one short support line + one CTA group + one dominant image. No stats, schedules, address blocks, promos, or secondary marketing in the hero.
+- **No hero overlays:** No floating badges, promo stickers, info chips, or callout boxes on hero media.
+- **Cards:** Default no cards. Never in the hero. Cards only when they contain a real user interaction; if border/shadow/radius/background can be removed without hurting understanding, drop the card.
+- **One job per section:** One purpose, one headline, usually one short supporting sentence.
+- **Real visual anchor:** Imagery shows product, place, atmosphere, or context. Abstract gradients alone are not the main visual idea.
+- **Reduce clutter:** No pill clusters, stat strips, icon rows, boxed promos, or competing text blocks.
+- **Motion:** Use motion for presence and hierarchy, not noise. Visually led work should ship 2–3 intentional motions.
+- **Color & look:** Pick a clear direction; define CSS variables. Avoid AI-default looks: purple-on-white / purple–indigo gradients; warm cream (~#F4F1EA) + high-contrast serif + terracotta; broadsheet hairline/zero-radius dense columns. Avoid bias to dark mode, purple, glow, `rounded-full` pills, multi-layer shadows, emojis.
+- **Responsive:** Must work on desktop and mobile.
