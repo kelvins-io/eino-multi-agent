@@ -21,7 +21,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: eino-multi-agent-api
+#    image: eino-multi-agent-api
     container_name: eino-work-api
     restart: unless-stopped
     depends_on:
@@ -77,7 +77,7 @@ services:
     environment:
       VITE_BASE_PATH: ${VITE_BASE_PATH:-/}
     ports:
-      - "${EINO_WEB_PORT:-8080}:80"
+      - "5273:80"
 
 volumes:
   pgdata:
