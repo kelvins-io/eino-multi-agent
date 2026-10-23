@@ -32,6 +32,7 @@ Agent tools include file I/O, shell, DuckDuckGo search, `fetch_url`, skill loadi
 
 - Backend: Gin + GORM + PostgreSQL + Eino DeepAgent
 - Frontend: Vue 3 + Element Plus + Vite
+- Desktop: Tauri 2 shell (`desktop/`), reuses the web console
 - Config: `config.yaml` + `.env` / environment variables (env wins)
 
 ## Quick start
@@ -95,6 +96,30 @@ After building the frontend, Gin serves `web/dist`:
 cd web && npm run build
 go run ./cmd/server
 ```
+
+### Desktop (Tauri shell)
+
+Wraps the `web/` console into macOS / Windows installers. It does **not** embed the API or database—start the backend first (or set a remote API URL on the login screen).
+
+Prerequisites: Node.js 18+, [Rust](https://www.rust-lang.org/tools/install); Xcode CLT on macOS; WebView2 on Windows.
+
+```bash
+# Start API (and Postgres) first
+docker compose up -d postgres
+go run ./cmd/server
+
+# Dev
+make desktop-dev
+# or: cd desktop && npm install && npm run dev
+
+# Package for the current platform (macOS → .app/.dmg; Windows → NSIS setup)
+make desktop-build
+# or: cd desktop && npm run build
+# macOS: npm run build:mac
+# Windows (build on Windows): npm run build:windows
+```
+
+Artifacts land in `desktop/src-tauri/target/release/bundle/`. Code signing is required for public distribution; see [desktop/README.md](./desktop/README.md).
 
 ### Docker Compose
 

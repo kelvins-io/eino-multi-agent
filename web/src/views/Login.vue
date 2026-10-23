@@ -18,6 +18,7 @@
             @keyup.enter="submit"
           />
         </el-form-item>
+        <ApiBaseField />
         <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" style="margin-bottom: 12px" />
         <el-button type="primary" class="auth-submit" :loading="loading" @click="submit">登录</el-button>
       </el-form>
@@ -37,6 +38,7 @@
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { login } from '../api'
+import ApiBaseField from '../components/ApiBaseField.vue'
 
 const router = useRouter()
 const route = useRoute()

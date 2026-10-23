@@ -8,7 +8,7 @@ COMPOSE_CMD = $(COMPOSE) -f $(COMPOSE_FILE)
 .DEFAULT_GOAL := help
 
 .PHONY: help up up-db down restart build rebuild pull ps logs logs-api logs-web logs-db \
-	shell-api shell-db clean
+	shell-api shell-db clean desktop-dev desktop-build
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -59,3 +59,11 @@ shell-db: ## psql into Postgres
 
 clean: ## Stop stack and remove named volumes (pgdata/workspace/logs)
 	$(COMPOSE_CMD) down -v --remove-orphans
+
+desktop-dev: ## Run Tauri desktop shell (requires API on :8180)
+	npm --prefix desktop install
+	npm --prefix desktop run dev
+
+desktop-build: ## Build desktop installers for the current platform
+	npm --prefix desktop install
+	npm --prefix desktop run build

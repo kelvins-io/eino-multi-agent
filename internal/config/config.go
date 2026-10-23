@@ -75,6 +75,11 @@ func Default() *Config {
 			CORSOrigins: []string{
 				"http://localhost:5173",
 				"http://127.0.0.1:5173",
+				"http://localhost:5273",
+				"http://127.0.0.1:5273",
+				"http://tauri.localhost",
+				"https://tauri.localhost",
+				"tauri://localhost",
 			},
 			LogLevel:    "info",
 			LogFormat:   "console",

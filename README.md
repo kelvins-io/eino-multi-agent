@@ -32,6 +32,7 @@ Agent 侧工具包括文件读写、shell、DuckDuckGo 搜索、`fetch_url`、�
 
 - 后端：Gin + GORM + PostgreSQL + Eino DeepAgent
 - 前端：Vue 3 + Element Plus + Vite
+- 桌面端：Tauri 2 壳（`desktop/`），复用 web 控制台
 - 配置：`config.yaml` + `.env` / 环境变量（环境变量优先）
 
 ## 快速开始
@@ -96,6 +97,30 @@ go run ./cmd/eval -limit 200
 cd web && npm run build
 go run ./cmd/server
 ```
+
+### 桌面端（Tauri 壳）
+
+复用 `web/` 控制台，打包为 macOS / Windows 安装包；**不内嵌** API 与数据库，需先启动后端（或在登录页填写远程 API 地址）。
+
+前置：Node.js 18+、[Rust](https://www.rust-lang.org/tools/install)；macOS 需 Xcode CLT，Windows 需 WebView2。
+
+```bash
+# 先起 API（及 Postgres）
+docker compose up -d postgres
+go run ./cmd/server
+
+# 开发
+make desktop-dev
+# 或: cd desktop && npm install && npm run dev
+
+# 当前平台打包（macOS → .app/.dmg；Windows → NSIS setup）
+make desktop-build
+# 或: cd desktop && npm run build
+# macOS 指定: npm run build:mac
+# Windows 指定（需在 Windows 上构建）: npm run build:windows
+```
+
+产物在 `desktop/src-tauri/target/release/bundle/`。对外分发需自行配置代码签名；细节见 [desktop/README.md](./desktop/README.md)。
 
 ### Docker Compose 部署
 

@@ -1,13 +1,28 @@
 import axios from 'axios'
 import { clearSession, getToken, setSession } from './auth'
+import { resolveApiOrigin } from './apiBase'
 import { stripBase, withBase } from './base'
 
+function apiV1Base() {
+  const origin = resolveApiOrigin()
+  if (origin) return `${origin}/api/v1`
+  return withBase('/api/v1')
+}
+
+function resolveApiPath(path) {
+  const suffix = String(path || '')
+  const normalized = suffix.startsWith('/') ? suffix : `/${suffix}`
+  const origin = resolveApiOrigin()
+  if (origin) return `${origin}${normalized}`
+  return withBase(normalized)
+}
+
 const http = axios.create({
-  baseURL: withBase('/api/v1'),
   timeout: 30000,
 })
 
 http.interceptors.request.use((config) => {
+  config.baseURL = apiV1Base()
   const token = getToken()
   if (token) {
     config.headers = config.headers || {}
@@ -101,7 +116,7 @@ export const artifactUrl = (taskId, artifactId, inline = false) => {
   if (inline) qs.set('inline', '1')
   if (token) qs.set('token', token)
   const q = qs.toString()
-  return withBase(`/api/v1/tasks/${taskId}/artifacts/${artifactId}${q ? `?${q}` : ''}`)
+  return resolveApiPath(`/api/v1/tasks/${taskId}/artifacts/${artifactId}${q ? `?${q}` : ''}`)
 }
 
 export const getArtifactPreview = (taskId, artifactId) =>
@@ -111,7 +126,7 @@ export const openEventStream = (taskId, after, onEvent) => {
   const token = getToken()
   const qs = new URLSearchParams({ after: String(after || 0) })
   if (token) qs.set('token', token)
-  const url = withBase(`/api/v1/tasks/${taskId}/events?${qs.toString()}`)
+  const url = resolveApiPath(`/api/v1/tasks/${taskId}/events?${qs.toString()}`)
   const es = new EventSource(url)
   es.addEventListener('task', (e) => {
     try {

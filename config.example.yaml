@@ -12,6 +12,10 @@ server:
   cors_origins:
     - "http://localhost:5273"
     - "http://127.0.0.1:5273"
+    # Tauri 2 desktop shell origins
+    - "http://tauri.localhost"
+    - "https://tauri.localhost"
+    - "tauri://localhost"
   # JWT 签名密钥（生产环境务必更换）
   jwt_secret: "eino-dev-jwt-secret-change-me"
   # Token 有效期
