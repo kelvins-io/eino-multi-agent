@@ -1,0 +1,1512 @@
+openapi: 3.0.3
+info:
+  title: eino-multi-agent API
+  description: |
+    长任务工作 Harness 的 HTTP API。除公开接口外，请求需携带 JWT
+    （`Authorization: Bearer <token>`，也可放在查询参数 `token`）。
+
+    公开接口：`GET /health`、`POST /auth/register`、`POST /auth/login`、`POST /hooks/echo`。
+
+    业务读写接口要求登录用户身份（JWT `sub` 为用户 ID），数据按 `user_id` 隔离。
+    可选静态 `auth_token` 能通过鉴权中间件，但没有用户身份，调用业务接口会返回 `401 login required`。
+
+    任务状态：`queued` → `running` →（可选 `waiting_confirm`）→ `succeeded` / `failed` / `cancelled`。
+  version: "1.0.0"
+
+servers:
+  - url: http://127.0.0.1:8080
+    description: 本地默认监听地址（`server.addr` / `EINO_SERVER_ADDR`）
+
+tags:
+  - name: Health
+  - name: Auth
+  - name: Meta
+  - name: Tasks
+  - name: Artifacts
+  - name: Projects
+  - name: Schedules
+  - name: Connectors
+  - name: Audit
+  - name: Eval
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [Health]
+      summary: 健康检查
+      operationId: health
+      security: []
+      responses:
+        "200":
+          description: 服务可用
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ok"
+
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: 注册并签发 JWT
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: 用户名已存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: username already exists
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: 登录并签发 JWT
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: 用户名或密码错误
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: invalid username or password
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: 当前登录用户
+      description: 需要 JWT 中的用户身份。静态 token 无法通过。
+      operationId: me
+      responses:
+        "200":
+          description: 当前用户
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/meta:
+    get:
+      tags: [Meta]
+      summary: 运行时元信息
+      description: 模型就绪状态、技能列表、确认策略。JWT 或静态 token 均可。
+      operationId: meta
+      responses:
+        "200":
+          description: 元信息
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meta"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/tasks:
+    get:
+      tags: [Tasks]
+      summary: 任务列表
+      operationId: listTasks
+      parameters:
+        - $ref: "#/components/parameters/Limit50"
+        - name: project_id
+          in: query
+          description: 按项目过滤
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 当前用户的任务
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Task"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [Tasks]
+      summary: 创建任务
+      description: |
+        支持 JSON 或 `multipart/form-data`。multipart 时 `skills` 可以是 JSON 数组字符串，或逗号分隔的技能名；
+        文件字段名为 `files`，可多文件。
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskRequest"
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CreateTaskForm"
+      responses:
+        "201":
+          description: 已创建并入队
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+
+  /api/v1/tasks/{id}:
+    get:
+      tags: [Tasks]
+      summary: 任务详情
+      description: 返回任务本身，以及事件和产物列表。
+      operationId: getTask
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: 任务详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskDetail"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/tasks/{id}/cancel:
+    post:
+      tags: [Tasks]
+      summary: 取消任务
+      operationId: cancelTask
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: 已取消
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ok"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/tasks/{id}/confirm:
+    post:
+      tags: [Tasks]
+      summary: 批准或拒绝风险操作
+      operationId: confirmTask
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmRequest"
+      responses:
+        "200":
+          description: 已处理确认
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ok"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/tasks/{id}/retry:
+    post:
+      tags: [Tasks]
+      summary: 重试失败任务
+      operationId: retryTask
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: 已重新入队
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/tasks/{id}/events:
+    get:
+      tags: [Tasks]
+      summary: 任务事件 SSE
+      description: |
+        `Content-Type: text/event-stream`。先回放 `after` 之后的历史事件，再推送新事件。
+        每条事件格式：
+
+        ```
+        id: <event id>
+        event: task
+        data: <TaskEvent JSON>
+
+        ```
+
+        约每 15 秒发送注释行 `: ping` 作为心跳。客户端断开后服务端结束流。
+      operationId: taskEvents
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - name: after
+          in: query
+          description: 只返回 ID 大于该值的事件，默认 `0`
+          schema:
+            type: integer
+            format: int64
+            default: 0
+      responses:
+        "200":
+          description: SSE 事件流
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: 每条 data 为 TaskEvent JSON
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/tasks/{id}/artifacts:
+    get:
+      tags: [Artifacts]
+      summary: 产物列表
+      operationId: listArtifacts
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: 产物列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Artifact"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/tasks/{id}/artifacts/{aid}:
+    get:
+      tags: [Artifacts]
+      summary: 下载产物
+      description: "`inline=1` 时以内联方式返回文件内容，否则作为附件下载。"
+      operationId: downloadArtifact
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - $ref: "#/components/parameters/ArtifactId"
+        - name: inline
+          in: query
+          schema:
+            type: string
+            enum: ["1"]
+          description: 设为 `1` 时以内联方式返回
+      responses:
+        "200":
+          description: 文件内容
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/tasks/{id}/artifacts/{aid}/preview:
+    get:
+      tags: [Artifacts]
+      summary: 预览产物
+      description: 不可预览时返回 `previewable=false`。图片返回访问 URL，文本返回截断后的正文（最多 20000 个字符）。
+      operationId: previewArtifact
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - $ref: "#/components/parameters/ArtifactId"
+      responses:
+        "200":
+          description: 预览结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactPreview"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/projects:
+    get:
+      tags: [Projects]
+      summary: 项目列表
+      operationId: listProjects
+      responses:
+        "200":
+          description: 当前用户的项目
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Project"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [Projects]
+      summary: 创建项目
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+      responses:
+        "201":
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/projects/{id}:
+    get:
+      tags: [Projects]
+      summary: 项目详情
+      description: 含共享文件和最近 50 条关联任务。
+      operationId: getProject
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: 项目详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/projects/{id}/files:
+    post:
+      tags: [Projects]
+      summary: 上传项目共享文件
+      operationId: uploadProjectFiles
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "200":
+          description: 上传后的共享文件列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [files]
+                properties:
+                  files:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FileInfo"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/schedules:
+    get:
+      tags: [Schedules]
+      summary: 定时任务列表
+      operationId: listSchedules
+      responses:
+        "200":
+          description: 当前用户的定时任务
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Schedule"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [Schedules]
+      summary: 创建定时任务
+      description: |
+        `kind` 为 `once`、`daily` 或 `weekly`。
+        `once` 必须提供 RFC3339 的 `run_at`。
+        `weekly` 的 `weekday` 为 0–6（周日到周六）。
+        `timezone` 缺省为 `Asia/Shanghai`。标题缺省时截取目标前 40 个字符。
+      operationId: createSchedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScheduleRequest"
+      responses:
+        "201":
+          description: 已创建并启用
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schedule"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/schedules/{id}/run:
+    post:
+      tags: [Schedules]
+      summary: 立刻执行一轮
+      operationId: runSchedule
+      parameters:
+        - $ref: "#/components/parameters/ScheduleId"
+      responses:
+        "200":
+          description: 已创建的任务
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          description: 调度器未就绪
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: scheduler not ready
+
+  /api/v1/schedules/{id}/toggle:
+    post:
+      tags: [Schedules]
+      summary: 切换启用状态
+      operationId: toggleSchedule
+      parameters:
+        - $ref: "#/components/parameters/ScheduleId"
+      responses:
+        "200":
+          description: 更新后的定时任务
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schedule"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/connectors:
+    get:
+      tags: [Connectors]
+      summary: 连接器列表
+      operationId: listConnectors
+      responses:
+        "200":
+          description: 当前用户的连接器
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Connector"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags: [Connectors]
+      summary: 创建连接器
+      description: |
+        `kind` 为 `webhook` 或 `local_dir`。
+        webhook 的 `config.url` 必填，可选 `config.secret`（投递时写入 `X-Harness-Secret`）。
+        local_dir 使用 `config.path` 作为导出目录名，缺省为连接器 ID。
+      operationId: createConnector
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConnectorRequest"
+      responses:
+        "201":
+          description: 已创建并启用
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Connector"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/connectors/{id}/toggle:
+    post:
+      tags: [Connectors]
+      summary: 切换启用状态
+      operationId: toggleConnector
+      parameters:
+        - $ref: "#/components/parameters/ConnectorId"
+      responses:
+        "200":
+          description: 更新后的连接器
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Connector"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/connectors/{id}/test:
+    post:
+      tags: [Connectors]
+      summary: 测试投递
+      description: 用一条虚拟成功任务调用该连接器。
+      operationId: testConnector
+      parameters:
+        - $ref: "#/components/parameters/ConnectorId"
+      responses:
+        "200":
+          description: 投递成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ok"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          description: 连接器未就绪
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: connectors not ready
+
+  /api/v1/hooks/echo:
+    post:
+      tags: [Connectors]
+      summary: Webhook 调试回声
+      description: 丢弃请求体（最多 1MB）并返回 204，用于本地调试 webhook。
+      operationId: hookEcho
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "204":
+          description: 已接收
+
+  /api/v1/audit:
+    get:
+      tags: [Audit]
+      summary: 审计日志
+      operationId: listAudit
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        "200":
+          description: 当前用户的审计记录
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditLog"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/eval:
+    get:
+      tags: [Eval]
+      summary: 评估报告
+      description: 按内置用例（周报 / 调研 / 文件整理）统计当前用户历史任务的完成率。
+      operationId: getEval
+      parameters:
+        - name: limit
+          in: query
+          description: 参与统计的最近任务数
+          schema:
+            type: integer
+            default: 200
+      responses:
+        "200":
+          description: 评估报告
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvalReport"
+        "401":
+          $ref: "#/components/responses/LoginRequired"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        登录或注册返回的 JWT。也可通过查询参数 `token` 传递同一令牌。
+        可选静态 `auth_token` 使用相同位置，但不能代替用户身份。
+
+  parameters:
+    TaskId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ArtifactId:
+      name: aid
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    ProjectId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ScheduleId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ConnectorId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Limit50:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 50
+
+  responses:
+    BadRequest:
+      description: 请求不合法
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: 未携带有效凭证
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: unauthorized
+    LoginRequired:
+      description: 缺少登录用户身份
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            loginRequired:
+              value:
+                error: login required
+            unauthorized:
+              value:
+                error: unauthorized
+    Forbidden:
+      description: 无权读取该文件
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: 资源不存在或不属于当前用户
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalError:
+      description: 服务端错误
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    Ok:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          example: true
+
+    User:
+      type: object
+      required: [id, username, display_name, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        display_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    RegisterRequest:
+      type: object
+      required: [username, display_name, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+          description: 仅字母、数字、`_`、`-`
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        password:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 128
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+        password:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 128
+        display_name:
+          type: string
+          description: 登录时忽略
+
+    AuthResponse:
+      type: object
+      required: [token, expires_at, user]
+      properties:
+        token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        user:
+          $ref: "#/components/schemas/User"
+
+    Skill:
+      type: object
+      required: [name, description]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+
+    Meta:
+      type: object
+      required: [llm, confirm_policies, skills, auth_required, auth_mode]
+      properties:
+        llm:
+          type: object
+          required: [provider, model, ready]
+          properties:
+            provider:
+              type: string
+            model:
+              type: string
+            ready:
+              type: boolean
+        confirm_policies:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConfirmPolicy"
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/Skill"
+        auth_required:
+          type: boolean
+          example: true
+        auth_mode:
+          type: string
+          example: jwt
+
+    ConfirmPolicy:
+      type: string
+      enum: [on_risk, always, never]
+
+    TaskStatus:
+      type: string
+      enum: [queued, running, waiting_confirm, succeeded, failed, cancelled]
+
+    TodoItem:
+      type: object
+      required: [content, status]
+      properties:
+        content:
+          type: string
+        active_form:
+          type: string
+        status:
+          type: string
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        title:
+          type: string
+        goal:
+          type: string
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        confirm_policy:
+          $ref: "#/components/schemas/ConfirmPolicy"
+        skills:
+          type: array
+          items:
+            type: string
+        project_id:
+          type: string
+        schedule_id:
+          type: string
+        workspace:
+          type: string
+        summary:
+          type: string
+        todos:
+          type: array
+          items:
+            $ref: "#/components/schemas/TodoItem"
+        error_message:
+          type: string
+        interrupt_id:
+          type: string
+        interrupt_info:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    TaskEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        task_id:
+          type: string
+        type:
+          type: string
+          description: 例如 think、todos、read、write、search、shell、skill、confirm、interrupt
+        agent:
+          type: string
+        message:
+          type: string
+        payload:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Artifact:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        task_id:
+          type: string
+        rel_path:
+          type: string
+        name:
+          type: string
+        size:
+          type: integer
+          format: int64
+        mime:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    TaskDetail:
+      type: object
+      required: [task, events, artifacts]
+      properties:
+        task:
+          $ref: "#/components/schemas/Task"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskEvent"
+        artifacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Artifact"
+
+    CreateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        goal:
+          type: string
+        confirm_policy:
+          $ref: "#/components/schemas/ConfirmPolicy"
+        skills:
+          type: array
+          items:
+            type: string
+        project_id:
+          type: string
+
+    CreateTaskForm:
+      type: object
+      properties:
+        title:
+          type: string
+        goal:
+          type: string
+        confirm_policy:
+          type: string
+        skills:
+          type: string
+          description: JSON 数组字符串，或逗号分隔的技能名
+        project_id:
+          type: string
+        files:
+          type: array
+          items:
+            type: string
+            format: binary
+
+    ConfirmRequest:
+      type: object
+      required: [approved]
+      properties:
+        approved:
+          type: boolean
+
+    ArtifactPreview:
+      type: object
+      required: [previewable, name, mime]
+      properties:
+        previewable:
+          type: boolean
+        kind:
+          type: string
+          enum: [image, text]
+        name:
+          type: string
+        mime:
+          type: string
+        url:
+          type: string
+          description: kind=image 时的内联访问路径
+        text:
+          type: string
+          description: kind=text 时的正文
+        truncated:
+          type: boolean
+
+    FileInfo:
+      type: object
+      properties:
+        rel_path:
+          type: string
+        name:
+          type: string
+        size:
+          type: integer
+          format: int64
+        mime:
+          type: string
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        workspace:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ProjectDetail:
+      type: object
+      required: [project, files, tasks]
+      properties:
+        project:
+          $ref: "#/components/schemas/Project"
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileInfo"
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+
+    CreateProjectRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+
+    ScheduleKind:
+      type: string
+      enum: [once, daily, weekly]
+
+    Schedule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        project_id:
+          type: string
+        title:
+          type: string
+        goal:
+          type: string
+        skills:
+          type: array
+          items:
+            type: string
+        confirm_policy:
+          $ref: "#/components/schemas/ConfirmPolicy"
+        kind:
+          $ref: "#/components/schemas/ScheduleKind"
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: 0 为周日
+        hour:
+          type: integer
+          minimum: 0
+          maximum: 23
+        minute:
+          type: integer
+          minimum: 0
+          maximum: 59
+        run_at:
+          type: string
+          format: date-time
+          nullable: true
+        timezone:
+          type: string
+        enabled:
+          type: boolean
+        last_run_at:
+          type: string
+          format: date-time
+          nullable: true
+        next_run_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateScheduleRequest:
+      type: object
+      required: [goal, kind]
+      properties:
+        project_id:
+          type: string
+        title:
+          type: string
+        goal:
+          type: string
+        skills:
+          type: array
+          items:
+            type: string
+        confirm_policy:
+          $ref: "#/components/schemas/ConfirmPolicy"
+        kind:
+          $ref: "#/components/schemas/ScheduleKind"
+        weekday:
+          type: integer
+          minimum: 0
+          maximum: 6
+        hour:
+          type: integer
+        minute:
+          type: integer
+        run_at:
+          type: string
+          description: kind=once 时必填，RFC3339
+        timezone:
+          type: string
+          default: Asia/Shanghai
+
+    ConnectorKind:
+      type: string
+      enum: [webhook, local_dir]
+
+    Connector:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        name:
+          type: string
+        kind:
+          $ref: "#/components/schemas/ConnectorKind"
+        config:
+          type: object
+          additionalProperties:
+            type: string
+          description: webhook 使用 url、secret；local_dir 使用 path
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateConnectorRequest:
+      type: object
+      required: [name, kind]
+      properties:
+        name:
+          type: string
+        kind:
+          $ref: "#/components/schemas/ConnectorKind"
+        config:
+          type: object
+          additionalProperties:
+            type: string
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        user_id:
+          type: string
+        actor:
+          type: string
+        action:
+          type: string
+          description: 例如 task.create、auth.login、schedule.run
+        target_type:
+          type: string
+        target_id:
+          type: string
+        detail:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    EvalCase:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        skill:
+          type: string
+        fixture:
+          type: string
+        expect_files:
+          type: array
+          items:
+            type: string
+
+    EvalTaskScore:
+      type: object
+      properties:
+        case_id:
+          type: string
+        task_id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        passed:
+          type: boolean
+        reason:
+          type: string
+        confirms:
+          type: integer
+        duration_ms:
+          type: integer
+          format: int64
+        artifact_count:
+          type: integer
+
+    EvalCaseSummary:
+      type: object
+      properties:
+        case:
+          $ref: "#/components/schemas/EvalCase"
+        total:
+          type: integer
+        passed:
+          type: integer
+        failed:
+          type: integer
+        confirms:
+          type: integer
+        completion:
+          type: number
+          format: double
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvalTaskScore"
+
+    EvalReport:
+      type: object
+      properties:
+        cases:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvalCaseSummary"
+        total:
+          type: integer
+        passed:
+          type: integer
+        completion:
+          type: number
+          format: double
+        confirms:
+          type: integer
