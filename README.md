@@ -100,7 +100,7 @@ go run ./cmd/server
 
 ### 桌面端（Tauri 壳）
 
-复用 `web/` 控制台，打包为 macOS / Windows 安装包；**不内嵌** API 与数据库，需先启动后端（或在登录页填写远程 API 地址）。
+复用 `web/` 控制台，打包为 macOS / Windows 安装包；**不内嵌** API 与数据库，需先启动后端（API 地址在 `web/.env` 的 `VITE_API_BASE` 中配置）。
 
 前置：Node.js 18+、[Rust](https://www.rust-lang.org/tools/install)；macOS 需 Xcode CLT，Windows 需 WebView2。
 

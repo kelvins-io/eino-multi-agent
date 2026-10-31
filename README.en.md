@@ -99,7 +99,7 @@ go run ./cmd/server
 
 ### Desktop (Tauri shell)
 
-Wraps the `web/` console into macOS / Windows installers. It does **not** embed the API or database—start the backend first (or set a remote API URL on the login screen).
+Wraps the `web/` console into macOS / Windows installers. It does **not** embed the API or database—start the backend first (set the API URL with `VITE_API_BASE` in `web/.env`).
 
 Prerequisites: Node.js 18+, [Rust](https://www.rust-lang.org/tools/install); Xcode CLT on macOS; WebView2 on Windows.
 

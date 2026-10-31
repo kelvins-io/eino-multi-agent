@@ -379,13 +379,6 @@ body {
   font-size: 14px;
 }
 
-.api-base-hint {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
 .auth-submit {
   width: 100%;
 }

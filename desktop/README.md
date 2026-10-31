@@ -24,7 +24,7 @@ npm install
 npm run dev
 ```
 
-开发态加载 Vite（`http://127.0.0.1:5273`）。登录页可修改 API 地址（写入 localStorage）。
+开发态加载 Vite（`http://127.0.0.1:5273`）。API 地址由 `web/.env` 或 `web/.env.desktop` 的 `VITE_API_BASE` 决定。
 
 ## 打包
 
@@ -45,4 +45,4 @@ npm run build:windows  # Windows: NSIS setup（需在 Windows 上构建）
 | 场景 | API 地址 |
 |---|---|
 | 浏览器 + Vite 代理 | 相对路径 `/api`（不变） |
-| 桌面打包产物 | 构建时注入 `VITE_API_BASE=http://127.0.0.1:8180`，可在登录页覆盖 |
+| 桌面打包产物 | 构建时注入 `web/.env.desktop` 的 `VITE_API_BASE=http://127.0.0.1:8180` |
