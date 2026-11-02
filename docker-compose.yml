@@ -68,6 +68,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_BASE_PATH: ${VITE_BASE_PATH:-/}
+        VITE_API_BASE: ${VITE_API_BASE:-}
     image: eino-multi-agent-web
     container_name: eino-work-web
     restart: unless-stopped
