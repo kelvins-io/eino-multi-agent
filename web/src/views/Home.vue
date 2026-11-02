@@ -23,7 +23,7 @@
     </template>
       <div class="topbar">
         <el-alert
-          v-if="!meta.llm?.ready"
+          v-if="metaLoaded && !meta.llm?.ready"
           title="尚未配置 LLM。设置 EINO_LLM_API_KEY 或 config.yaml 后即可真正跑任务。"
           type="warning"
           show-icon
@@ -194,6 +194,7 @@ import {
 } from '../api'
 
 const meta = ref({ llm: {}, skills: [] })
+const metaLoaded = ref(false)
 const tasks = ref([])
 const currentId = ref('')
 const detail = ref(null)
@@ -392,6 +393,7 @@ const openPreview = async (row) => {
 onMounted(async () => {
   try {
     meta.value = await getMeta()
+    metaLoaded.value = true
     projects.value = await listProjects()
     await refreshList()
   } catch (err) {
