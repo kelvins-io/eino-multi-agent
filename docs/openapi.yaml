@@ -1020,6 +1020,35 @@ components:
         auth_mode:
           type: string
           example: jwt
+        a2a:
+          type: object
+          description: A2A 服务状态（独立端口，入站建任务；启动成功后可自动登记）
+          properties:
+            enabled:
+              type: boolean
+            auto_register:
+              type: boolean
+              description: 主 API 监听成功后是否自动拉起并登记
+            addr:
+              type: string
+              example: ":8181"
+            public_url:
+              type: string
+            handler_path:
+              type: string
+              example: "/a2a"
+            agent_card:
+              type: string
+              description: Agent Card 完整 URL
+            auth:
+              type: boolean
+              description: 是否配置了静态 Bearer
+            registries:
+              type: integer
+              description: 外部注册中心数量
+            remotes:
+              type: integer
+              description: 已配置的远程 A2A 子代理数量
 
     ConfirmPolicy:
       type: string

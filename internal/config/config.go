@@ -18,6 +18,39 @@ type Config struct {
 	LLM       LLMConfig       `yaml:"llm"`
 	Agent     AgentConfig     `yaml:"agent"`
 	Search    SearchConfig    `yaml:"search"`
+	A2A       A2AConfig       `yaml:"a2a"`
+}
+
+// A2AConfig 启用 Google A2A（Agent-to-Agent）协议：入站建任务、出站挂远程子代理。
+type A2AConfig struct {
+	Enabled       bool                `yaml:"enabled"`
+	Addr          string              `yaml:"addr"`
+	PublicURL     string              `yaml:"public_url"`
+	HandlerPath   string              `yaml:"handler_path"`
+	AuthToken     string              `yaml:"auth_token"`
+	Name          string              `yaml:"name"`
+	Description   string              `yaml:"description"`
+	Version       string              `yaml:"version"`
+	ConfirmPolicy string              `yaml:"confirm_policy"`
+	// AutoRegister：主 API 监听成功后自动拉起 A2A，并向 registries 登记 Agent Card。
+	AutoRegister bool                `yaml:"auto_register"`
+	Registries   []A2ARegistryConfig `yaml:"registries"`
+	Remotes      []A2ARemoteConfig   `yaml:"remotes"`
+}
+
+// A2ARegistryConfig 启动成功后向外部注册中心提交 wellKnownURI（Agent Card）。
+type A2ARegistryConfig struct {
+	URL       string `yaml:"url"`
+	AuthToken string `yaml:"auth_token"`
+}
+
+type A2ARemoteConfig struct {
+	Name        string `yaml:"name"`
+	Description string `yaml:"description"`
+	BaseURL     string `yaml:"base_url"`
+	HandlerPath string `yaml:"handler_path"`
+	AuthToken   string `yaml:"auth_token"`
+	Streaming   *bool  `yaml:"streaming"`
 }
 
 type ServerConfig struct {
@@ -105,6 +138,17 @@ func Default() *Config {
 			Language:     "zh",
 		},
 		Search: SearchConfig{Enabled: true, MaxResults: 8},
+		A2A: A2AConfig{
+			Enabled:       true,
+			AutoRegister:  true,
+			Addr:          ":8181",
+			PublicURL:     "http://127.0.0.1:8181",
+			HandlerPath:   "/a2a",
+			Name:          "eino-work-harness",
+			Description:   "长任务工作 Harness：下达目标、拆解执行、交付可下载产物",
+			Version:       "1.0.0",
+			ConfirmPolicy: "never",
+		},
 	}
 }
 
@@ -183,6 +227,39 @@ func (c *Config) normalize() error {
 	if c.Server.LogKeepDays < 0 {
 		c.Server.LogKeepDays = 14
 	}
+	if c.A2A.Addr == "" {
+		c.A2A.Addr = ":8181"
+	}
+	if c.A2A.PublicURL == "" {
+		c.A2A.PublicURL = "http://127.0.0.1:8181"
+	}
+	if c.A2A.HandlerPath == "" {
+		c.A2A.HandlerPath = "/a2a"
+	}
+	if !strings.HasPrefix(c.A2A.HandlerPath, "/") {
+		c.A2A.HandlerPath = "/" + c.A2A.HandlerPath
+	}
+	if c.A2A.Name == "" {
+		c.A2A.Name = "eino-work-harness"
+	}
+	if c.A2A.Description == "" {
+		c.A2A.Description = "长任务工作 Harness：下达目标、拆解执行、交付可下载产物"
+	}
+	if c.A2A.Version == "" {
+		c.A2A.Version = "1.0.0"
+	}
+	if c.A2A.ConfirmPolicy == "" {
+		c.A2A.ConfirmPolicy = "never"
+	}
+	for i := range c.A2A.Remotes {
+		r := &c.A2A.Remotes[i]
+		if r.HandlerPath == "" {
+			r.HandlerPath = "/a2a"
+		}
+		if !strings.HasPrefix(r.HandlerPath, "/") {
+			r.HandlerPath = "/" + r.HandlerPath
+		}
+	}
 	return nil
 }
 
@@ -259,6 +336,30 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("EINO_AGENT_LANGUAGE"); v != "" {
 		cfg.Agent.Language = v
+	}
+	if v := os.Getenv("EINO_A2A_ENABLED"); v != "" {
+		cfg.A2A.Enabled = strings.EqualFold(v, "1") || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
+	}
+	if v := os.Getenv("EINO_A2A_ADDR"); v != "" {
+		cfg.A2A.Addr = v
+	}
+	if v := os.Getenv("EINO_A2A_PUBLIC_URL"); v != "" {
+		cfg.A2A.PublicURL = v
+	}
+	if v := os.Getenv("EINO_A2A_HANDLER_PATH"); v != "" {
+		cfg.A2A.HandlerPath = v
+	}
+	if v := os.Getenv("EINO_A2A_AUTH_TOKEN"); v != "" {
+		cfg.A2A.AuthToken = v
+	}
+	if v := os.Getenv("EINO_A2A_NAME"); v != "" {
+		cfg.A2A.Name = v
+	}
+	if v := os.Getenv("EINO_A2A_CONFIRM_POLICY"); v != "" {
+		cfg.A2A.ConfirmPolicy = v
+	}
+	if v := os.Getenv("EINO_A2A_AUTO_REGISTER"); v != "" {
+		cfg.A2A.AutoRegister = strings.EqualFold(v, "1") || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
 	}
 }
 

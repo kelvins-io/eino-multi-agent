@@ -19,6 +19,7 @@
 | 评估报告 | 按内置用例（周报 / 调研 / 整理）统计历史任务完成率 |
 | 崩溃恢复 | 进程重启后对 `queued` / `running` 任务按检查点续跑或重新执行 |
 | API 鉴权 | 业务接口需 JWT（`Authorization: Bearer` 或 `?token=`）；可选静态 `auth_token` 与 JWT 并存 |
+| A2A | 可选：另开端口暴露 Agent Card + JSON-RPC；入站建 harness 任务（静态 Bearer）；可配置远程 A2A 子代理 |
 
 内置技能（`skills/`）：
 
@@ -215,8 +216,27 @@ docker compose up -d --build
 | `EINO_AGENT_LANGUAGE` | Agent 语言偏好，默认 `zh` |
 | `EINO_WORKSPACE_ROOT` | 任务沙箱根目录 |
 | `EINO_SKILLS_DIR` | 技能目录 |
+| `EINO_A2A_ENABLED` | 启用 A2A 服务（默认 `true`） |
+| `EINO_A2A_AUTO_REGISTER` | 主 API 监听成功后自动拉起 A2A 并向 `registries` 登记（默认 `true`） |
+| `EINO_A2A_ADDR` | A2A 监听地址，默认 `:8181` |
+| `EINO_A2A_PUBLIC_URL` | Agent Card 对外 URL，默认 `http://127.0.0.1:8181` |
+| `EINO_A2A_HANDLER_PATH` | JSON-RPC 路径，默认 `/a2a` |
+| `EINO_A2A_AUTH_TOKEN` | A2A 静态 Bearer（入站鉴权） |
+| `EINO_A2A_CONFIRM_POLICY` | 入站任务确认策略，默认 `never` |
 
-YAML 中还可配置 `server.cors_origins`、`search.enabled` / `max_results`、`database` 连接池等，见 `config.example.yaml`。
+YAML 中还可配置 `server.cors_origins`、`search.enabled` / `max_results`、`database` 连接池、`a2a.remotes` 等，见 `config.example.yaml`。
+
+### A2A 快速验证
+
+主 API 监听成功后会自动拉起 A2A（`auto_register: true`）。若配置了 `a2a.registries`，会向各注册中心 POST `wellKnownURI`。
+
+```bash
+# 建议设置 EINO_A2A_AUTH_TOKEN=secret
+curl -s http://127.0.0.1:8181/.well-known/agent-card.json \
+  -H "Authorization: Bearer secret"
+```
+
+入站 `message/send` / `message/stream` 会按消息文本创建 harness 任务（任务 id 与 A2A task id 一致），完成后返回摘要与产物路径。远程协作在 `a2a.remotes` 配置后挂到主控 SubAgents。
 
 LLM 示例见 `.env.example`（OpenAI 兼容、火山方舟 Ark、本地 Ollama）。
 
@@ -231,6 +251,7 @@ cmd/eval            # 评估 CLI
 internal/api        # Gin 路由、JWT 鉴权与用户隔离
 internal/harness    # 任务运行时、检查点恢复、事件总线
 internal/agent      # DeepAgent 工厂、工具、技能
+internal/a2a        # A2A Server（入站建任务）与 Client（远程子代理）
 internal/confirm    # 风险分类与确认门闩
 internal/scheduler  # 定时调度
 internal/connector  # Webhook / 本地目录投递

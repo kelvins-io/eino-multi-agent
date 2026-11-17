@@ -26,6 +26,7 @@ import (
 )
 
 type CreateInput struct {
+	ID            string // optional; empty → auto UUID（A2A 入站复用协议 task id）
 	Title         string
 	Goal          string
 	ConfirmPolicy string
@@ -84,7 +85,10 @@ func (r *Runtime) Create(ctx context.Context, in CreateInput) (*store.Task, erro
 	if strings.TrimSpace(in.Goal) == "" {
 		return nil, fmt.Errorf("goal is required")
 	}
-	id := uuid.NewString()
+	id := strings.TrimSpace(in.ID)
+	if id == "" {
+		id = uuid.NewString()
+	}
 	sb, err := workspace.New(r.cfg.Workspace.Root, id)
 	if err != nil {
 		return nil, err

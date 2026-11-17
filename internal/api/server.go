@@ -110,6 +110,17 @@ func (s *Server) meta(c *gin.Context) {
 		"skills":           skills,
 		"auth_required":    true,
 		"auth_mode":        "jwt",
+		"a2a": gin.H{
+			"enabled":       s.cfg.A2A.Enabled,
+			"auto_register": s.cfg.A2A.AutoRegister,
+			"addr":          s.cfg.A2A.Addr,
+			"public_url":    s.cfg.A2A.PublicURL,
+			"handler_path":  s.cfg.A2A.HandlerPath,
+			"agent_card":    strings.TrimRight(s.cfg.A2A.PublicURL, "/") + "/.well-known/agent-card.json",
+			"auth":          strings.TrimSpace(s.cfg.A2A.AuthToken) != "",
+			"registries":    len(s.cfg.A2A.Registries),
+			"remotes":       len(s.cfg.A2A.Remotes),
+		},
 	})
 }
 

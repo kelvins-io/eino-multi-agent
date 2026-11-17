@@ -22,8 +22,9 @@ type BuildRequest struct {
 }
 
 type Factory struct {
-	cfg   *config.Config
-	model model.ToolCallingChatModel
+	cfg     *config.Config
+	model   model.ToolCallingChatModel
+	remotes []adk.Agent
 }
 
 func NewFactory(ctx context.Context, cfg *config.Config) (*Factory, error) {
@@ -35,6 +36,11 @@ func NewFactory(ctx context.Context, cfg *config.Config) (*Factory, error) {
 		return nil, err
 	}
 	return &Factory{cfg: cfg, model: cm}, nil
+}
+
+// SetRemoteAgents 挂载通过 A2A Client 封装的远程子代理。
+func (f *Factory) SetRemoteAgents(agents []adk.Agent) {
+	f.remotes = agents
 }
 
 func (f *Factory) Build(ctx context.Context, req BuildRequest) (adk.ResumableAgent, error) {
@@ -112,7 +118,9 @@ func (f *Factory) Build(ctx context.Context, req BuildRequest) (adk.ResumableAge
 		return nil, fmt.Errorf("code agent: %w", err)
 	}
 
-	instruction := buildInstruction(req)
+	subs := []adk.Agent{research, office, code}
+	subs = append(subs, f.remotes...)
+	instruction := buildInstruction(req, f.remotes)
 	return deep.New(ctx, &deep.Config{
 		Name:           "work_harness",
 		Description:    "长任务工作代理，拆解目标、调用工具并交付文件产物",
@@ -120,7 +128,7 @@ func (f *Factory) Build(ctx context.Context, req BuildRequest) (adk.ResumableAge
 		Instruction:    instruction,
 		Backend:        backend,
 		StreamingShell: backend,
-		SubAgents:      []adk.Agent{research, office, code},
+		SubAgents:      subs,
 		ToolsConfig: adk.ToolsConfig{
 			ToolsNodeConfig:    compose.ToolsNodeConfig{Tools: mainTools},
 			EmitInternalEvents: true,
@@ -167,7 +175,7 @@ func (f *Factory) failoverConfig() *adk.ModelFailoverConfig[*schema.Message] {
 	}
 }
 
-func buildInstruction(req BuildRequest) string {
+func buildInstruction(req BuildRequest, remotes []adk.Agent) string {
 	var b strings.Builder
 	b.WriteString("你是工作任务 Harness 中的主控代理，目标是完成用户交代的完整工作并交付可下载文件，而不是只聊天。\n")
 	b.WriteString("工作区绝对路径：")
@@ -177,6 +185,16 @@ func buildInstruction(req BuildRequest) string {
 	b.WriteString("多步骤任务先用 write_todos 拆解，再逐步执行并更新进度。\n")
 	b.WriteString("覆盖已有文件、删除、危险 shell、对外 POST 会按确认策略自动暂停，等待用户允许后再继续。不要绕过确认去改 input/ 里的原始资料。\n")
 	b.WriteString("调研交给 research 子代理，表格和文档交给 office 子代理，数据分析交给 code 子代理。\n")
+	if len(remotes) > 0 {
+		b.WriteString("以下远程 A2A 子代理可按需委派（它们运行在外部服务）：\n")
+		for _, r := range remotes {
+			b.WriteString("- ")
+			b.WriteString(r.Name(context.Background()))
+			b.WriteString(": ")
+			b.WriteString(r.Description(context.Background()))
+			b.WriteString("\n")
+		}
+	}
 	b.WriteString("完成后在 output/ 留下成品，并用简体中文总结做了什么、产物路径和未完成项。\n")
 	if len(req.Skills) > 0 {
 		b.WriteString("\n可用技能（需要时用 skill 工具加载完整流程）：\n")

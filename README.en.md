@@ -19,6 +19,7 @@ A long-running work harness built on CloudWeGo Eino. It mirrors the core loop of
 | Eval report | Score historical tasks against built-in cases (weekly report / research / organize) |
 | Crash recovery | After restart, resume or re-run `queued` / `running` tasks from checkpoints |
 | API auth | Business APIs require a JWT (`Authorization: Bearer` or `?token=`); optional static `auth_token` coexists with JWT |
+| A2A | Optional: separate port for Agent Card + JSON-RPC; inbound messages create harness tasks (static Bearer); configurable remote A2A sub-agents |
 
 Built-in skills (`skills/`):
 

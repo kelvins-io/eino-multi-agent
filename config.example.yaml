@@ -53,3 +53,30 @@ agent:
 search:
   enabled: true
   max_results: 8
+
+# A2A（Agent-to-Agent）。主 API 监听成功后自动拉起（auto_register），另开 Hertz 端口。
+# 入站 message/send|stream 会创建本仓库 harness 任务；鉴权为静态 Bearer（EINO_A2A_AUTH_TOKEN）。
+a2a:
+  enabled: true
+  auto_register: true
+  addr: ":8181"
+  public_url: "http://127.0.0.1:8181"
+  handler_path: "/a2a"
+  auth_token: ""
+  name: "eino-work-harness"
+  description: "长任务工作 Harness：下达目标、拆解执行、交付可下载产物"
+  version: "1.0.0"
+  # 入站任务默认确认策略；建议 never，避免 A2A 调用卡在 waiting_confirm
+  confirm_policy: "never"
+  # 启动成功后向注册中心 POST {"wellKnownURI":"<public_url>/.well-known/agent-card.json"}
+  registries: []
+  # - url: "https://a2aregistry.org/api/agents/register"
+  #   auth_token: ""
+  # 出站：挂到主控 SubAgents 的远程 A2A Agent
+  remotes: []
+  # - name: "remote-research"
+  #   description: "远程调研代理"
+  #   base_url: "http://127.0.0.1:9000"
+  #   handler_path: "/a2a"
+  #   auth_token: ""
+  #   streaming: true
