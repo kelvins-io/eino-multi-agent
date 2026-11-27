@@ -95,6 +95,28 @@ body {
   margin-bottom: 16px;
 }
 
+.side-links {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid #d5e4f5;
+  font-size: 12px;
+}
+
+.side-links-label {
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.side-links a {
+  color: var(--brand);
+  text-decoration: none;
+}
+
+.side-links a:hover {
+  text-decoration: underline;
+}
+
 .task-list {
   overflow: auto;
   flex: 1;
@@ -403,6 +425,9 @@ body {
   text-align: center;
   color: var(--muted);
   font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .auth-contact a {

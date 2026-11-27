@@ -27,8 +27,14 @@
       </div>
     </div>
     <div class="auth-contact">
-      联系我们
-      <a href="mailto:1225807604@qq.com">1225807604@qq.com</a>
+      <div>
+        联系我们
+        <a href="mailto:1225807604@qq.com">1225807604@qq.com</a>
+      </div>
+      <div>
+        关联站点
+        <a href="https://github.com/kelvins-io" target="_blank" rel="noopener noreferrer">GitHub · kelvins-io</a>
+      </div>
     </div>
   </div>
 </template>

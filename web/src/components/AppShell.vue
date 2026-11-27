@@ -12,6 +12,10 @@
         <router-link to="/eval" :class="{ 'is-active': route.path.startsWith('/eval') }">评估</router-link>
       </nav>
       <slot name="side" />
+      <div class="side-links">
+        <div class="side-links-label">关联站点</div>
+        <a href="https://github.com/kelvins-io" target="_blank" rel="noopener noreferrer">GitHub · kelvins-io</a>
+      </div>
     </aside>
     <main class="main">
       <div class="app-userbar">
