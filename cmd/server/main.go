@@ -15,6 +15,7 @@ import (
 	"github.com/kelvins-io/eino-multi-agent/internal/connector"
 	"github.com/kelvins-io/eino-multi-agent/internal/harness"
 	"github.com/kelvins-io/eino-multi-agent/internal/logx"
+	workmcp "github.com/kelvins-io/eino-multi-agent/internal/mcp"
 	"github.com/kelvins-io/eino-multi-agent/internal/scheduler"
 	"github.com/kelvins-io/eino-multi-agent/internal/store"
 	"go.uber.org/zap"
@@ -89,6 +90,7 @@ func main() {
 		zap.Int("skills", len(skills)),
 		zap.Bool("a2a", cfg.A2A.Enabled),
 		zap.Bool("a2a_auto_register", cfg.A2A.AutoRegister),
+		zap.Bool("mcp", cfg.MCP.Enabled),
 	)
 
 	// 主 API 监听成功后再拉起 A2A，并向注册中心登记
@@ -103,6 +105,10 @@ func main() {
 			log.Fatal("a2a server", zap.Error(err))
 		}
 		a2aSrv.Start(nil)
+	}
+
+	if cfg.MCP.Enabled {
+		workmcp.StartHTTP(cfg, st, rt, sched, reg)
 	}
 
 	if err := srv.Engine().RunListener(ln); err != nil {

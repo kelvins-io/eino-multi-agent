@@ -51,6 +51,7 @@ services:
       EINO_AGENT_LANGUAGE: ${EINO_AGENT_LANGUAGE:-zh}
     ports:
       - "${EINO_API_PORT:-8180}:8180"
+      - "${EINO_MCP_PORT:-8182}:8182"
     volumes:
       - workspace:/data/workspace
       - logs:/data/logs

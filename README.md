@@ -20,6 +20,7 @@
 | 崩溃恢复 | 进程重启后对 `queued` / `running` 任务按检查点续跑或重新执行 |
 | API 鉴权 | 业务接口需 JWT（`Authorization: Bearer` 或 `?token=`）；可选静态 `auth_token` 与 JWT 并存 |
 | A2A | 可选：另开端口暴露 Agent Card + JSON-RPC；入站建 harness 任务（静态 Bearer）；可配置远程 A2A 子代理 |
+| MCP | 可选：stdio（`cmd/mcp`）与 Streamable HTTP（默认 `:8182/mcp`）暴露全量业务工具；需用户 JWT |
 
 内置技能（`skills/`）：
 
@@ -89,6 +90,36 @@ go run ./cmd/eval -limit 200
 ```
 
 也可在前端「评估」页或 `GET /api/v1/eval` 查看（需鉴权）。
+
+### MCP
+
+主进程在 API 就绪后另开 Streamable HTTP（默认 `http://127.0.0.1:8182/mcp`，需 `Authorization: Bearer <JWT>`）。本地 Cursor 等客户端可用 stdio：
+
+```bash
+export EINO_API_BASE=http://127.0.0.1:8180
+export EINO_API_TOKEN=<your-jwt>
+go run ./cmd/mcp
+```
+
+Cursor `mcp.json` 示例：
+
+```json
+{
+  "mcpServers": {
+    "eino-work": {
+      "command": "go",
+      "args": ["run", "./cmd/mcp"],
+      "cwd": "/absolute/path/to/eino-multi-agent",
+      "env": {
+        "EINO_API_BASE": "http://127.0.0.1:8180",
+        "EINO_API_TOKEN": "<your-jwt>"
+      }
+    }
+  }
+}
+```
+
+工具覆盖任务 / 项目 / 定时 / 连接器 / 审计 / 评估（如 `create_task`、`list_tasks`、`confirm_task`、`get_eval`）。不接受仅静态 `auth_token`（无用户身份）。
 
 ### 生产构建
 
@@ -223,8 +254,13 @@ docker compose up -d --build
 | `EINO_A2A_HANDLER_PATH` | JSON-RPC 路径，默认 `/a2a` |
 | `EINO_A2A_AUTH_TOKEN` | A2A 静态 Bearer（入站鉴权） |
 | `EINO_A2A_CONFIRM_POLICY` | 入站任务确认策略，默认 `never` |
+| `EINO_MCP_ENABLED` | 启用主进程 MCP HTTP（默认 `true`） |
+| `EINO_MCP_ADDR` | MCP 监听地址，默认 `:8182` |
+| `EINO_MCP_PATH` | MCP 路径，默认 `/mcp` |
+| `EINO_MCP_NAME` | MCP 实现名（stdio / HTTP 共用） |
+| `EINO_MCP_VERSION` | MCP 实现版本 |
 
-YAML 中还可配置 `server.cors_origins`、`search.enabled` / `max_results`、`database` 连接池、`a2a.remotes` 等，见 `config.example.yaml`。
+YAML 中还可配置 `server.cors_origins`、`search.enabled` / `max_results`、`database` 连接池、`a2a.remotes`、`mcp` 等，见 `config.example.yaml`。
 
 ### A2A 快速验证
 
@@ -248,6 +284,8 @@ docker-compose.yml  # Postgres + API + 前端
 cmd/server          # HTTP 服务入口
 cmd/cli             # 任务 CLI
 cmd/eval            # 评估 CLI
+cmd/mcp             # MCP stdio（经 REST 调 API）
+internal/mcp        # MCP 工具注册、HTTP/Local Client、Streamable HTTP
 internal/api        # Gin 路由、JWT 鉴权与用户隔离
 internal/harness    # 任务运行时、检查点恢复、事件总线
 internal/agent      # DeepAgent 工厂、工具、技能

@@ -34,5 +34,5 @@ RUN if [ -f /tmp/.env ]; then \
     && chown eino:eino /app/.env
 USER eino
 
-EXPOSE 8180
+EXPOSE 8180 8182
 ENTRYPOINT ["/app/server"]

@@ -20,6 +20,7 @@ A long-running work harness built on CloudWeGo Eino. It mirrors the core loop of
 | Crash recovery | After restart, resume or re-run `queued` / `running` tasks from checkpoints |
 | API auth | Business APIs require a JWT (`Authorization: Bearer` or `?token=`); optional static `auth_token` coexists with JWT |
 | A2A | Optional: separate port for Agent Card + JSON-RPC; inbound messages create harness tasks (static Bearer); configurable remote A2A sub-agents |
+| MCP | Optional: stdio (`cmd/mcp`) and Streamable HTTP (default `:8182/mcp`) expose full business tools; requires a user JWT |
 
 Built-in skills (`skills/`):
 
@@ -88,6 +89,36 @@ go run ./cmd/eval -limit 200
 ```
 
 Also available on the Eval page or `GET /api/v1/eval` (auth required).
+
+### MCP
+
+After the API is up, the main process also serves Streamable HTTP MCP (default `http://127.0.0.1:8182/mcp`, requires `Authorization: Bearer <JWT>`). For Cursor and other local clients, use stdio:
+
+```bash
+export EINO_API_BASE=http://127.0.0.1:8180
+export EINO_API_TOKEN=<your-jwt>
+go run ./cmd/mcp
+```
+
+Example Cursor `mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "eino-work": {
+      "command": "go",
+      "args": ["run", "./cmd/mcp"],
+      "cwd": "/absolute/path/to/eino-multi-agent",
+      "env": {
+        "EINO_API_BASE": "http://127.0.0.1:8180",
+        "EINO_API_TOKEN": "<your-jwt>"
+      }
+    }
+  }
+}
+```
+
+Tools cover tasks / projects / schedules / connectors / audit / eval (e.g. `create_task`, `list_tasks`, `confirm_task`, `get_eval`). A static `auth_token` alone is rejected (no user identity).
 
 ### Production build
 
@@ -215,8 +246,13 @@ Copy `config.example.yaml` / `.env.example`. Common environment variables:
 | `EINO_AGENT_LANGUAGE` | Agent language preference, default `zh` |
 | `EINO_WORKSPACE_ROOT` | Task sandbox root |
 | `EINO_SKILLS_DIR` | Skills directory |
+| `EINO_MCP_ENABLED` | Enable in-process MCP HTTP (default `true`) |
+| `EINO_MCP_ADDR` | MCP listen address, default `:8182` |
+| `EINO_MCP_PATH` | MCP path, default `/mcp` |
+| `EINO_MCP_NAME` | MCP implementation name |
+| `EINO_MCP_VERSION` | MCP implementation version |
 
-YAML also supports `server.cors_origins`, `search.enabled` / `max_results`, database pool settings, and more — see `config.example.yaml`.
+YAML also supports `server.cors_origins`, `search.enabled` / `max_results`, database pool settings, `mcp`, and more — see `config.example.yaml`.
 
 LLM examples are in `.env.example` (OpenAI-compatible, Volcengine Ark, local Ollama).
 
@@ -228,6 +264,8 @@ docker-compose.yml  # Postgres + API + frontend
 cmd/server          # HTTP server entry
 cmd/cli             # Task CLI
 cmd/eval            # Eval CLI
+cmd/mcp             # MCP stdio (calls REST API)
+internal/mcp        # MCP tools, HTTP/Local clients, Streamable HTTP
 internal/api        # Gin routes, JWT auth, per-user scoping
 internal/harness    # Runtime, checkpoint recovery, event bus
 internal/agent      # DeepAgent factory, tools, skills

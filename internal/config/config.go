@@ -19,6 +19,16 @@ type Config struct {
 	Agent     AgentConfig     `yaml:"agent"`
 	Search    SearchConfig    `yaml:"search"`
 	A2A       A2AConfig       `yaml:"a2a"`
+	MCP       MCPConfig       `yaml:"mcp"`
+}
+
+// MCPConfig 暴露 Model Context Protocol：主进程 Streamable HTTP + 独立 cmd/mcp stdio。
+type MCPConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Addr    string `yaml:"addr"`
+	Path    string `yaml:"path"`
+	Name    string `yaml:"name"`
+	Version string `yaml:"version"`
 }
 
 // A2AConfig 启用 Google A2A（Agent-to-Agent）协议：入站建任务、出站挂远程子代理。
@@ -149,6 +159,13 @@ func Default() *Config {
 			Version:       "1.0.0",
 			ConfirmPolicy: "never",
 		},
+		MCP: MCPConfig{
+			Enabled: true,
+			Addr:    ":8182",
+			Path:    "/mcp",
+			Name:    "eino-work-harness",
+			Version: "1.0.0",
+		},
 	}
 }
 
@@ -260,6 +277,21 @@ func (c *Config) normalize() error {
 			r.HandlerPath = "/" + r.HandlerPath
 		}
 	}
+	if c.MCP.Addr == "" {
+		c.MCP.Addr = ":8182"
+	}
+	if c.MCP.Path == "" {
+		c.MCP.Path = "/mcp"
+	}
+	if !strings.HasPrefix(c.MCP.Path, "/") {
+		c.MCP.Path = "/" + c.MCP.Path
+	}
+	if c.MCP.Name == "" {
+		c.MCP.Name = "eino-work-harness"
+	}
+	if c.MCP.Version == "" {
+		c.MCP.Version = "1.0.0"
+	}
 	return nil
 }
 
@@ -360,6 +392,21 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("EINO_A2A_AUTO_REGISTER"); v != "" {
 		cfg.A2A.AutoRegister = strings.EqualFold(v, "1") || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
+	}
+	if v := os.Getenv("EINO_MCP_ENABLED"); v != "" {
+		cfg.MCP.Enabled = strings.EqualFold(v, "1") || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
+	}
+	if v := os.Getenv("EINO_MCP_ADDR"); v != "" {
+		cfg.MCP.Addr = v
+	}
+	if v := os.Getenv("EINO_MCP_PATH"); v != "" {
+		cfg.MCP.Path = v
+	}
+	if v := os.Getenv("EINO_MCP_NAME"); v != "" {
+		cfg.MCP.Name = v
+	}
+	if v := os.Getenv("EINO_MCP_VERSION"); v != "" {
+		cfg.MCP.Version = v
 	}
 }
 

@@ -80,3 +80,12 @@ a2a:
   #   handler_path: "/a2a"
   #   auth_token: ""
   #   streaming: true
+
+# MCP（Model Context Protocol）。主 API 启动后另开 Streamable HTTP；stdio 见 go run ./cmd/mcp。
+# HTTP 端要求 Authorization: Bearer <JWT>（与 REST 同一用户隔离）。
+mcp:
+  enabled: true
+  addr: ":8182"
+  path: "/mcp"
+  name: "eino-work-harness"
+  version: "1.0.0"
